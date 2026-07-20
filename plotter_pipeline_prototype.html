@@ -1,0 +1,375 @@
+<!doctype html>
+<html>
+
+<head>
+  <meta charset='utf-8'>
+  <title>Plotter</title>
+  <style>
+    body {
+      margin: 0;
+      display: flex;
+      font-family: Arial
+    }
+
+    #side {
+      width: 260px;
+      padding: 12px;
+      background: #eee
+    }
+
+    #main {
+      flex: 1;
+      padding: 12px
+    }
+
+    label {
+      display: block;
+      margin: 6px 0
+    }
+
+    svg {
+      border: 1px solid #888;
+      width: 700px;
+      height: 700px
+    }
+
+    .rule-set, .rule-group {
+      border: 1px solid black;
+      margin-bottom: 1em;
+    }
+    
+  </style>
+</head>
+
+<body>
+  <div id=side>
+    <h3>Parameters</h3>
+    
+    <label>Rows <input id=rows type=number value=15></label>
+    <label>Cols <input id=cols type=number value=15></label>
+    <label>Base radius <input id=rad type=number step=0.1 value=4></label>
+    <label>Min scale <input id=mins type=number step=0.1 value=0.8></label>
+    <label>Max scale <input id=maxs type=number step=0.1 value=1.2></label>
+    <label>Rules</label>
+    <div id="rules-ui"></div>
+    <button onclick='recalculate()'>Recalculate</button>
+    <button onclick='download("all")'>Preview SVG</button>
+    <button onclick='download("red")'>Red SVG</button>
+    <button onclick='download("black")'>Black SVG</button>
+  </div>
+  <div id=main>
+    <div id=view></div>
+  </div>
+  <script>
+    const NS = "http://www.w3.org/2000/svg";
+    const RuleTypes = {
+      RADIUS: 'radius',
+      XCOORD: 'xcoord',
+      YCOORD: 'ycoord'
+    }
+
+    let gid = 1;
+    function getGid() {
+      return gid++;
+    }
+
+    const OperatorTypes = {
+      GT: '>',
+      LT: '<'
+    }
+
+    class PipelineStep {
+      id;
+      constructor() {
+        this.id = getGid();
+      }
+      getInputs() {
+        console.log('Superclass getting inputs for ' + this.id)
+      }
+      renderInputs() {
+        throw new Error('Undefined PipelineStep renderInputs called')
+      }
+      setValues(v) {
+      }
+    }
+
+    class RadiusRule extends PipelineStep {
+      type = RuleTypes.RADIUS;
+      elementId = this.id + '-radius';
+      operator;
+      centre;
+      radius;
+      constructor(operator, centre, radius) {
+        super()
+        this.operator = operator;
+        this.centre = centre;
+        this.radius = radius;
+      }
+      classify(p) {
+        let r = Math.hypot(p.centre.x - this.centre.x, p.centre.y - this.centre.y);
+        if (this.operator == OperatorTypes.GT) {
+          return r > this.radius;
+        } else {
+          return r < this.radius;
+        }
+      }
+      renderInputs() {
+        return `<label>Radius ${this.operator} <input id='${this.elementId}' type=number value=${this.radius}></label>`
+      }
+      getInputs() {
+        const radius = document.getElementById(this.elementId).value
+        if (!isNaN(radius)) {
+          this.radius = radius
+        }
+
+        // TODO: centre
+      }
+    }
+
+    class XRule extends PipelineStep {
+      type = RuleTypes.XCOORD;
+      operator;
+      limit;
+      constructor(operator, limit, radius) {
+        super()
+        this.operator = operator;
+        this.limit = limit;
+      }
+      classify(p) {
+        if (this.operator == OperatorTypes.GT) {
+          return p.centre.x > this.limit;
+        } else {
+          return p.centre.x < this.limit;
+        }
+      }
+      renderInputs() {
+        return `<label>X ${this.operator} <input id='${this.id}-limit' type=number value=${this.limit}></label>`
+      }      
+    }
+
+    const RuleGroup = class {
+      rules = []
+
+      constructor() { this.id = getGid(); }
+
+      addRule(rule) {
+        this.rules.push(rule)
+      }
+
+      // return true if p satisfies ALL rules
+      classify(p) {
+        for (const rule of this.rules) {
+          if (!rule.classify(p)) {
+            return false;
+          }
+        }
+        return true;
+      }
+    }
+
+    const RuleSet = class {
+      id;
+      colour;
+      ruleGroups = [];
+      constructor() { this.id = getGid(); }
+      
+      addGroup(g) {
+        this.ruleGroups.push(g);
+      }
+
+      // return true if p satisfies ANY rule group
+      classify(p) {
+        // return true if there are no rules (default set)
+        if (this.ruleGroups.length == 0) {
+          return true;
+        }
+        for (const ruleGroup of this.ruleGroups) {
+          if (ruleGroup.classify(p)) {
+            return true;
+          }
+        }
+        return false;
+      }
+
+      allRules() {
+        let op = []
+        for (let s of this.ruleGroups) {
+          for (let r of s.rules) {
+            op.push(r);
+          }
+        }
+        return op
+      }
+    }
+
+    let initRule = new RadiusRule(OperatorTypes.LT, {x: 100, y: 100}, 30) 
+    let xRule = new XRule(OperatorTypes.GT, 100);
+    let initGroup = new RuleGroup();
+    initGroup.addRule(initRule)
+    initGroup.addRule(xRule)
+
+    let secondRule = new RadiusRule(OperatorTypes.LT, {x: 100, y: 100}, 45) 
+    let secondGroup = new RuleGroup();
+    secondGroup.addRule(secondRule)
+
+    let tRule = new RadiusRule(OperatorTypes.LT, {x: 100, y: 100}, 65) 
+    let tGroup = new RuleGroup();
+    tGroup.addRule(tRule)
+
+    let initSet = new RuleSet();
+    initSet.colour = 'yellow'
+    initSet.addGroup(initGroup)
+
+    let secondSet = new RuleSet();
+    secondSet.colour = 'red'
+    secondSet.addGroup(secondGroup)
+
+    let tSet = new RuleSet();
+    tSet.colour = 'yellow'
+    tSet.addGroup(tGroup)
+
+    let defaultSet = new RuleSet();
+    defaultSet.colour = 'black'
+
+    let config = {
+      doc: {
+        w: 200, h: 200
+      },
+      grid: {
+        rows: +rows.value,
+        cols: +cols.value,
+        sx: 10,
+        sy: 9,
+        base: +rad.value
+      },
+      scale: {
+        min: +mins.value,
+        max: +maxs.value
+      },
+      // Generators []
+      // Transforms []
+      ruleSets: [initSet, secondSet, tSet, defaultSet]
+    }
+
+    function generateHexGrid(c) {
+      let g = []; for (let r = 0; r < c.grid.rows; r++)for (let col = 0; col < c.grid.cols; col++) {
+        let x = 20 + col * c.grid.sx + (r % 2 ? c.grid.sx / 2 : 0), y = 20 + r * c.grid.sy; g.push({
+          centre: {
+            x, y
+          }, radius: c.grid.base, points: []
+        })
+      } return g
+    }
+
+    function applyTransforms(g, c) {
+      for (const p of g) {
+        let s = c.scale.min + (c.scale.max - c.scale.min) * (p.centre.y / c.doc.h); p.points = []; for (let i = 0; i < 6; i++) {
+          let a = (60 * i - 30) * Math.PI / 180; let rr = p.radius * s; p.points.push({
+            x: p.centre.x + rr * Math.cos(a), y: p.centre.y + rr * Math.sin(a)
+          })
+        }
+      } return g
+    }
+
+    function assignLayers(g, c) {
+      let L = {
+      }; 
+
+      // There can be multiple rule sets assigning to one colour
+      // We treated them separately for calculating path colour, 
+      // but now combine to one layer per colour for SVG output
+      for (const ruleSet of c.ruleSets) {
+        if (!(ruleSet.colour in L)) {
+          L[ruleSet.colour] = []
+        }
+      }
+      
+      for (const p of g) {
+        for (const ruleSet of c.ruleSets) {
+          if (ruleSet.classify(p)) {
+            L[ruleSet.colour].push(p);
+            break;
+          }
+        }
+      }
+      return L
+    }
+
+    function pathD(o) {
+      return o.points.map((pt, i) => (i ? "L" : "M") + pt.x.toFixed(2) + " " + pt.y.toFixed(2)).join("") + "Z"
+    }
+
+    function svgText(layers, one) {
+      // TODO: de-Schlemiel this function
+      let s = `<svg xmlns="${NS}" viewBox="0 0 200 200" width="200mm" height="200mm"><rect width="200" height="200" fill="white"/>`; 
+      for (const n of (one == "all" ? Object.keys(layers) : [one])) {
+        s += `<g stroke="${n}" fill="none" stroke-width="0.4">`; 
+        for (const p of layers[n]) {
+          s += `<path d="${pathD(p)}"/>`;
+        }
+        s += "</g>"
+      } return s + "</svg>"
+    }
+    let current;
+
+    function render(l) {
+      view.innerHTML = ""; current = l; view.innerHTML = svgText(l, "all")
+    }
+
+    function recalculate() {
+      let c = config;
+      updateRules(c);
+      render(assignLayers(applyTransforms(generateHexGrid(c), c), c));
+    }
+
+    function buildUI(c) {
+      ui = ''
+      for (rs of c.ruleSets) {
+        ui = ui + "<div class='rule-set'>"
+        for (rg of rs.ruleGroups) {
+          ui = ui + "<div class='rule-group'>"
+          for (r of rg.rules) {
+            ui = ui + "<div class='rule-element'>" + r.renderInputs() + "</div>"
+          }
+          ui = ui + "</div>"
+        }
+        ui = ui + rs.colour + "</div>"
+      }
+
+      return ui;
+    }
+
+    function updateRules(c) {
+      // gens, xforms, colour rules are PipelineSteps
+      // they must implement:
+      //   a function to find form inputs
+      //   a function to set values from an object
+      // for each geometry generator, transform, rule:
+      //   find inputs from its id
+      //   (get the rule/gen/xform id, ask it what fields it wants, get those elements, get input values, setValues on rule)
+      //   change the config accordingly
+      pipelineSteps = []
+      // populate with gens and xforms
+      for (let r of c.ruleSets) {
+        // TODO: make sure this is a flat array, not an array of arrays
+        pipelineSteps = [...pipelineSteps, ...r.allRules()]
+      }
+
+      for (let s of pipelineSteps) {
+        s.getInputs();
+      }
+    }
+
+    function download(which) {
+      let a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([svgText(current, which)], {
+        type: "image/svg+xml"
+      })); a.download = which + ".svg"; a.click()
+    }
+    
+    // Set up initial UI
+    document.getElementById('rules-ui').innerHTML = buildUI(config);
+    recalculate();
+  </script>
+</body>
+
+</html>
