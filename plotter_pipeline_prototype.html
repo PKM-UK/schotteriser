@@ -128,7 +128,11 @@
 
       // Every generator has two functions:
       // generatePoints defined by the specific generator type,
-      // generateGeometry which always works the same
+      // generateGeometry which always* works the same
+
+      generatePoints(c) {
+        throw new Error('Undefined Generator generatePoints called')
+      }
 
       generateGeometry(c) {
         let g = this.generatePoints(c)
@@ -184,8 +188,62 @@
       }
     }
 
-    // TRANSFORMS
+    class TransformModify {
+      static scale(c, shape, scalar) {
+        // scale shape's points based on scalar
+        for (let p of shape.points) {
+          let dx = shape.centre.x - p.x
+          dx = dx * scalar
+          p.x = shape.centre.x - dx
 
+          let dy = shape.centre.y - p.y
+          dy = dy * scalar
+          p.y = shape.centre.y - dy
+        }
+      }
+      static rotate(c, shape,scalar) {
+        // rotate shape's points based on scalar
+      }
+    }
+
+    class TransformField {
+      value(c, point) {
+        throw new Error('Uninitialised TransformField value called')
+      }
+      renderInputs() {
+        throw new Error('Uninitialised TransformField renderInputs called')
+      }
+    }
+
+    class YLinearTransformField extends TransformField {
+      min;
+      max;
+
+      value(c, point) {
+        return this.min + (this.max * point.y / c.doc.h)
+      }
+    }
+
+    // TRANSFORMS
+    class Transform extends PipelineStep {
+      // A Transform has a transform function taking a shape
+      // it applies some modify function based on a scalar amount
+      // the Transform gets that scalar amount from a field which determines
+      // an amount based on a coordinate
+      //
+      // The job of the Transform is:
+      // for each shape in geometry:
+      //   call transformModify(shape, transformField(shape.centre))
+      constructor() {
+        super()
+      }
+
+      apply(c, g) {
+        for (let p of g) {
+          this.transformModify(c, p, this.transformField.value(c, p.centre))
+        }
+      }
+    }
 
     // COLOUR RULES
     class RadiusRule extends PipelineStep {
@@ -299,6 +357,12 @@
 
     let staggeredHexGen = new StaggeredGridGen(15, 10, 15, 15, SHAPES.hexagon, 6)
 
+    let yScaleXform = new Transform()
+    yScaleXform.transformModify = TransformModify.scale
+    yScaleXform.transformField = new YLinearTransformField()
+    yScaleXform.transformField.min = 0.3
+    yScaleXform.transformField.max = 1.5
+
     let initRule = new RadiusRule(OperatorTypes.LT, {x: 100, y: 100}, 30) 
     let xRule = new XRule(OperatorTypes.GT, 100);
     let initGroup = new RuleGroup();
@@ -344,7 +408,7 @@
         max: +maxs.value
       },
       generators: [staggeredHexGen],
-      // Transforms []
+      transforms: [yScaleXform],
       ruleSets: [initSet, secondSet, tSet, defaultSet]
     }
 
@@ -362,7 +426,9 @@
     }
 
     function applyTransforms(g,c) {
-      // TODO: ... implement
+      for (const transform of c.transforms) {
+        transform.apply(c, g)
+      }
       return g;
     }
 
@@ -448,7 +514,6 @@
       pipelineSteps = []
       // populate with gens and xforms
       for (let r of c.ruleSets) {
-        // TODO: make sure this is a flat array, not an array of arrays
         pipelineSteps = [...pipelineSteps, ...r.allRules()]
       }
 
