@@ -45,9 +45,7 @@
   <div id=side>
     <h3>Parameters</h3>
     
-    <label>Rows <input id=rows type=number value=15></label>
-    <label>Cols <input id=cols type=number value=15></label>
-    <label>Base radius <input id=rad type=number step=0.1 value=4></label>
+    <div id="generators-ui"></div>
     <label>Min scale <input id=mins type=number step=0.1 value=0.8></label>
     <label>Max scale <input id=maxs type=number step=0.1 value=1.2></label>
     <label>Rules</label>
@@ -62,6 +60,16 @@
   </div>
   <script>
     const NS = "http://www.w3.org/2000/svg";
+    // shape types? Too much?
+    const GenTypes = {
+      STAGGEREDGRID: 'staggeredgrid',
+      GRID: 'grid',
+      CIRCLE: 'circle'
+    }
+    const TransformTypes = {
+      SCALE: 'scale',
+      ROTATE: 'rotate'
+    }
     const RuleTypes = {
       RADIUS: 'radius',
       XCOORD: 'xcoord',
@@ -93,6 +101,93 @@
       }
     }
 
+    // A Generator has a generatePoints anda generateGeometry function
+    // gP creates a list of shapes populated with a centre, angle and scale
+    // gG calls for each shape a function which takes a centre, angle and radius
+    //   and adds to that shape an array of points which it
+
+    const SHAPES = {
+      'hexagon': function(p) {
+        for (let i = 0; i < 6; i++) {
+          let a = (60 * i - 30) * Math.PI / 180;
+          let rr = p.radius;
+          p.points.push({
+            x: p.centre.x + rr * Math.cos(a), y: p.centre.y + rr * Math.sin(a)
+          })
+        }
+      }
+    }
+
+    // GENERATORS
+    class Generator extends PipelineStep {
+      shape;
+      constructor(shape) {
+        super()
+        this.shape = shape;
+      }
+
+      // Every generator has two functions:
+      // generatePoints defined by the specific generator type,
+      // generateGeometry which always works the same
+
+      generateGeometry(c) {
+        let g = this.generatePoints(c)
+        for (const p of g) {
+          // for each shape in the geometry,
+          // populate a list of points
+          p.points = [];
+          this.shape(p)
+        }
+        return g
+      }      
+    }
+    class StaggeredGridGen extends Generator {
+      rows;
+      cols;
+      x_spacing;
+      y_spacing;
+      elementId;
+
+      constructor(rows, cols, sx, sy, shape, radius) {
+        super(shape)
+        this.rows = rows;
+        this.cols = cols;
+        this.x_spacing = sx;
+        this.y_spacing = sy;
+        this.shape = shape;
+        this.radius = radius
+
+        this.elementId = this.id + '-staggeredgrid'
+      }
+
+      generatePoints(c) {
+        let g = [];
+        for (let r = 0; r < this.rows; r++){ 
+          for (let col = 0; col < this.cols; col++) {
+            let x = 20 + col * this.x_spacing + (r % 2 ? this.x_spacing / 2 : 0), y = 20 + r * this.y_spacing;
+            // push a shape with a centre and radius to g
+            g.push({
+              centre: {
+                x, y
+              }, radius: this.radius, angle: 0, points: []
+            })
+          }
+        }
+        return g
+      }
+
+      renderInputs() {
+        return `<label>Hex grid</label>
+                <label>Rows <input id='${this.elementId}-rows' type=number value=${this.rows}></label>
+                <label>Cols <input id='${this.elementId}-cols' type=number value=${this.cols}></label>
+                <label>Base radius <input id='${this.elementId}-radius' type=number step=0.1 value=${this.radius}></label>`
+      }
+    }
+
+    // TRANSFORMS
+
+
+    // COLOUR RULES
     class RadiusRule extends PipelineStep {
       type = RuleTypes.RADIUS;
       elementId = this.id + '-radius';
@@ -202,6 +297,8 @@
       }
     }
 
+    let staggeredHexGen = new StaggeredGridGen(15, 10, 15, 15, SHAPES.hexagon, 6)
+
     let initRule = new RadiusRule(OperatorTypes.LT, {x: 100, y: 100}, 30) 
     let xRule = new XRule(OperatorTypes.GT, 100);
     let initGroup = new RuleGroup();
@@ -235,40 +332,38 @@
       doc: {
         w: 200, h: 200
       },
-      grid: {
-        rows: +rows.value,
-        cols: +cols.value,
-        sx: 10,
-        sy: 9,
-        base: +rad.value
-      },
+      //grid: {
+      //  rows: +rows.value,
+      //  cols: +cols.value,
+      //  sx: 10,
+      //  sy: 9,
+      //  base: +rad.value
+      //},
       scale: {
         min: +mins.value,
         max: +maxs.value
       },
-      // Generators []
+      generators: [staggeredHexGen],
       // Transforms []
       ruleSets: [initSet, secondSet, tSet, defaultSet]
     }
 
-    function generateHexGrid(c) {
-      let g = []; for (let r = 0; r < c.grid.rows; r++)for (let col = 0; col < c.grid.cols; col++) {
-        let x = 20 + col * c.grid.sx + (r % 2 ? c.grid.sx / 2 : 0), y = 20 + r * c.grid.sy; g.push({
-          centre: {
-            x, y
-          }, radius: c.grid.base, points: []
-        })
-      } return g
+    function generateGeometry(c) {
+      // TODO: The proper version
+      // 
+      // for (gen of c.generators) {
+      //   geometry = [...geometry, ...gen.generateGeometry(c)]
+      // }
+
+      // The quickie version: geometry from just one generator
+      let geometry = c.generators[0].generateGeometry(c)
+
+      return geometry;
     }
 
-    function applyTransforms(g, c) {
-      for (const p of g) {
-        let s = c.scale.min + (c.scale.max - c.scale.min) * (p.centre.y / c.doc.h); p.points = []; for (let i = 0; i < 6; i++) {
-          let a = (60 * i - 30) * Math.PI / 180; let rr = p.radius * s; p.points.push({
-            x: p.centre.x + rr * Math.cos(a), y: p.centre.y + rr * Math.sin(a)
-          })
-        }
-      } return g
+    function applyTransforms(g,c) {
+      // TODO: ... implement
+      return g;
     }
 
     function assignLayers(g, c) {
@@ -319,16 +414,18 @@
     function recalculate() {
       let c = config;
       updateRules(c);
-      render(assignLayers(applyTransforms(generateHexGrid(c), c), c));
+      render(assignLayers(applyTransforms(generateGeometry(c), c), c));
     }
 
     function buildUI(c) {
       ui = ''
+      // TODO: gens and xforms here
       for (rs of c.ruleSets) {
         ui = ui + "<div class='rule-set'>"
         for (rg of rs.ruleGroups) {
           ui = ui + "<div class='rule-group'>"
           for (r of rg.rules) {
+            // TODO: generic X remove button here
             ui = ui + "<div class='rule-element'>" + r.renderInputs() + "</div>"
           }
           ui = ui + "</div>"
