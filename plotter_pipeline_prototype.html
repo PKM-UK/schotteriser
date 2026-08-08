@@ -45,12 +45,6 @@
   <div id=side>
     <h3>Parameters</h3>
     <div id="whole-ui">
-      <label>Generators</label>
-      <div id="generators-ui" class="step-group"></div>
-      <label>Transforms</label>
-      <div id="transforms-ui" class="step-group"></div>
-      <label>Rules</label>
-      <div id="rules-ui" class="step-group"></div>
     </div>
     <button onclick='recalculate()'>Recalculate</button>
     <button onclick='download("all")'>Preview SVG</button>
@@ -587,20 +581,28 @@
     }
 
     function buildUI(c) {
-      ui = ''
-      // TODO: gens and xforms here
-      ui = ui + "<div class='generator-set'>"
+
+      /* <label>Generators</label>
+      <div id="generators-ui" class="step-group"></div>
+      <label>Transforms</label>
+      <div id="transforms-ui" class="step-group"></div>
+      <label>Rules</label>
+      <div id="rules-ui" class="step-group"></div> */
+
+      ui = ""
+      ui = ui + "<div id='generators-ui' class='step-group'>"
       for (gen of c.generators) {
         ui = ui + gen.renderInputs()
       }
       ui = ui + "</div>"
 
-      ui = ui + "<div class='generator-set'>"
+      ui = ui + "<div id='transforms-ui' class='step-group'>"
       for (xform of c.transforms) {
         ui = ui + xform.renderInputs()
       }
       ui = ui + "</div>"
 
+      ui = ui + "<div id='rules-ui' class='step-group'>"
       for (rs of c.ruleSets) {
         ui = ui + "<div class='rule-set'>"
         for (rg of rs.ruleGroups) {
@@ -613,6 +615,7 @@
         }
         ui = ui + rs.colour + "</div>"
       }
+      ui = ui + "</div>"
 
       return ui;
     }
@@ -644,7 +647,7 @@
     }
     
     // Set up initial UI
-    document.getElementById('rules-ui').innerHTML = buildUI(config);
+    document.getElementById('whole-ui').innerHTML = buildUI(config);
     recalculate();
   </script>
 </body>
