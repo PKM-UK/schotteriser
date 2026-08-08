@@ -155,50 +155,54 @@
         return g
       }      
     }
-    class StaggeredGridGen extends Generator {
-      rows;
-      cols;
-      x_spacing;
-      y_spacing;
-      elementId;
 
-      constructor(rows, cols, sx, sy, shape, radius) {
-        super(shape)
-        this.rows = rows;
-        this.cols = cols;
-        this.x_spacing = sx;
-        this.y_spacing = sy;
-        this.shape = shape;
-        this.radius = radius
+    const Generators = {
+      StaggeredGrid: class StaggeredGridGen extends Generator {
+        humanName = "Hex grid";
+        rows;
+        cols;
+        x_spacing;
+        y_spacing;
+        elementId;
 
-        this.elementId = this.id + '-staggeredgrid'
-      }
+        constructor(rows, cols, sx, sy, shape, radius) {
+          super(shape)
+          this.rows = rows;
+          this.cols = cols;
+          this.x_spacing = sx;
+          this.y_spacing = sy;
+          this.shape = shape;
+          this.radius = radius
 
-      generatePoints(c) {
-        let g = [];
-        for (let r = 0; r < this.rows; r++){ 
-          for (let col = 0; col < this.cols; col++) {
-            let x = (col + 1) * this.x_spacing + (r % 2 ? this.x_spacing / 2 : 0), y = (r + 1) * this.y_spacing;
-            // push a shape with a centre and radius to g
-            g.push({
-              centre: {
-                x, y
-              }, radius: this.radius, angle: 0, points: []
-            })
-          }
+          this.elementId = this.id + '-staggeredgrid'
         }
-        return g
+
+        generatePoints(c) {
+          let g = [];
+          for (let r = 0; r < this.rows; r++){ 
+            for (let col = 0; col < this.cols; col++) {
+              let x = (col + 1) * this.x_spacing + (r % 2 ? this.x_spacing / 2 : 0), y = (r + 1) * this.y_spacing;
+              // push a shape with a centre and radius to g
+              g.push({
+                centre: {
+                  x, y
+                }, radius: this.radius, angle: 0, points: []
+              })
+            }
+          }
+          return g
+        }
+
+        renderInputs() {
+          return `<label>Hex grid</label>
+                  <label>Rows <input id='${this.elementId}-rows' type=number value=${this.rows}></label>
+                  <label>Cols <input id='${this.elementId}-cols' type=number value=${this.cols}></label>
+                  <label>Base radius <input id='${this.elementId}-radius' type=number step=0.1 value=${this.radius}></label>`
+        }
       }
 
-      renderInputs() {
-        return `<label>Hex grid</label>
-                <label>Rows <input id='${this.elementId}-rows' type=number value=${this.rows}></label>
-                <label>Cols <input id='${this.elementId}-cols' type=number value=${this.cols}></label>
-                <label>Base radius <input id='${this.elementId}-radius' type=number step=0.1 value=${this.radius}></label>`
-      }
-    }
-
-    class GridGen extends Generator {
+      , Grid: class GridGen extends Generator {
+      humanName = "Square grid"
       rows;
       cols;
       x_spacing;
@@ -240,7 +244,7 @@
                 <label>Base radius <input id='${this.elementId}-radius' type=number step=0.1 value=${this.radius}></label>`
       }
     }    
-
+    }
     class TransformModifyFunction {
       static scale(c, shape, scalar) {
         // scale shape's points based on scalar
@@ -299,31 +303,32 @@
       }
     }
 
-    class YLinearTransformField extends TransformField {
-      min;
-      max;
+    const TransformFields = {
+      YLinear: class YLinearTransformField extends TransformField {
+        min;
+        max;
 
-      value(c, point) {
-        return this.min + (this.max * point.y / c.doc.h)
-      }
-      renderInputs() {
-        return `<label>by Y coordinate from <input id='${this.elementId}-min' type=number value=${this.min}>x to <input id='${this.elementId}-min' type=number value=${this.max}>x</label>`
-      }      
-    }
-
-    class XLinearTransformField extends TransformField {
-      min;
-      max;
-
-      value(c, point) {
-        return this.min + (this.max * point.x / c.doc.w)
+        value(c, point) {
+          return this.min + (this.max * point.y / c.doc.h)
+        }
+        renderInputs() {
+          return `<label>by Y coordinate from <input id='${this.elementId}-min' type=number value=${this.min}>x to <input id='${this.elementId}-min' type=number value=${this.max}>x</label>`
+        }      
       }
 
-      renderInputs() {
-        return `<label>by X coordinate from <input id='${this.elementId}-min' type=number value=${this.min}>x to <input id='${this.elementId}-min' type=number value=${this.max}>x</label>`
-      }       
-    }
+      , XLinear: class XLinearTransformField extends TransformField {
+        min;
+        max;
 
+        value(c, point) {
+          return this.min + (this.max * point.x / c.doc.w)
+        }
+
+        renderInputs() {
+          return `<label>by X coordinate from <input id='${this.elementId}-min' type=number value=${this.min}>x to <input id='${this.elementId}-min' type=number value=${this.max}>x</label>`
+        }       
+      }
+    }
     // TRANSFORMS
     class Transform extends PipelineStep {
       // A Transform has a transform function taking a shape
@@ -350,60 +355,61 @@
     }
 
     // COLOUR RULES
-    class RadiusRule extends PipelineStep {
-      type = RuleTypes.RADIUS;
-      elementId = this.id + '-radius';
-      operator;
-      centre;
-      radius;
-      constructor(operator, centre, radius) {
-        super()
-        this.operator = operator;
-        this.centre = centre;
-        this.radius = radius;
-      }
-      classify(p) {
-        let r = Math.hypot(p.centre.x - this.centre.x, p.centre.y - this.centre.y);
-        if (this.operator == OperatorTypes.GT) {
-          return r > this.radius;
-        } else {
-          return r < this.radius;
+    const Rules = {
+      Radius: class RadiusRule extends PipelineStep {
+        humanName = "Radius"
+        elementId = this.id + '-radius';
+        operator;
+        centre;
+        radius;
+        constructor(operator, centre, radius) {
+          super()
+          this.operator = operator;
+          this.centre = centre;
+          this.radius = radius;
         }
-      }
-      renderInputs() {
-        return `<label>Radius ${this.operator} <input id='${this.elementId}' type=number value=${this.radius}></label>`
-      }
-      getInputs() {
-        const radius = document.getElementById(this.elementId).value
-        if (!isNaN(radius)) {
-          this.radius = radius
+        classify(p) {
+          let r = Math.hypot(p.centre.x - this.centre.x, p.centre.y - this.centre.y);
+          if (this.operator == OperatorTypes.GT) {
+            return r > this.radius;
+          } else {
+            return r < this.radius;
+          }
         }
+        renderInputs() {
+          return `<label>Radius ${this.operator} <input id='${this.elementId}' type=number value=${this.radius}></label>`
+        }
+        getInputs() {
+          const radius = document.getElementById(this.elementId).value
+          if (!isNaN(radius)) {
+            this.radius = radius
+          }
 
-        // TODO: centre
+          // TODO: centre
+        }
+      }
+
+      , XRule: class XRule extends PipelineStep {
+        humanName = "X coord"
+        operator;
+        limit;
+        constructor(operator, limit, radius) {
+          super()
+          this.operator = operator;
+          this.limit = limit;
+        }
+        classify(p) {
+          if (this.operator == OperatorTypes.GT) {
+            return p.centre.x > this.limit;
+          } else {
+            return p.centre.x < this.limit;
+          }
+        }
+        renderInputs() {
+          return `<label>X ${this.operator} <input id='${this.id}-limit' type=number value=${this.limit}></label>`
+        }      
       }
     }
-
-    class XRule extends PipelineStep {
-      type = RuleTypes.XCOORD;
-      operator;
-      limit;
-      constructor(operator, limit, radius) {
-        super()
-        this.operator = operator;
-        this.limit = limit;
-      }
-      classify(p) {
-        if (this.operator == OperatorTypes.GT) {
-          return p.centre.x > this.limit;
-        } else {
-          return p.centre.x < this.limit;
-        }
-      }
-      renderInputs() {
-        return `<label>X ${this.operator} <input id='${this.id}-limit' type=number value=${this.limit}></label>`
-      }      
-    }
-
     const RuleGroup = class {
       rules = []
 
@@ -459,32 +465,32 @@
       }
     }
 
-    let staggeredHexGen = new StaggeredGridGen(15, 10, 15, 15, SHAPES.hexagon, 6)
-    let squareGen = new GridGen(10, 15, 20, 20, SHAPES.square, 8)
+    let staggeredHexGen = new Generators.StaggeredGrid(15, 10, 15, 15, SHAPES.hexagon, 6)
+    let squareGen = new Generators.Grid(10, 15, 20, 20, SHAPES.square, 8)
 
     let yScaleXform = new Transform()
     yScaleXform.transformModify = new TransformModifiers.Scale
-    yScaleXform.transformField = new YLinearTransformField()
+    yScaleXform.transformField = new TransformFields.YLinear()
     yScaleXform.transformField.min = 0.3
     yScaleXform.transformField.max = 1.0
 
     let xRotateXform = new Transform()
     xRotateXform.transformModify = new TransformModifiers.RotateInPlace
-    xRotateXform.transformField = new XLinearTransformField()
+    xRotateXform.transformField = new TransformFields.XLinear()
     xRotateXform.transformField.min = -0.1
     xRotateXform.transformField.max = 0.5; // Math.PI/6
 
-    let initRule = new RadiusRule(OperatorTypes.LT, {x: 100, y: 100}, 30) 
-    let xRule = new XRule(OperatorTypes.GT, 100);
+    let initRule = new Rules.Radius(OperatorTypes.LT, {x: 100, y: 100}, 30) 
+    let xRule = new Rules.XRule(OperatorTypes.GT, 100);
     let initGroup = new RuleGroup();
     initGroup.addRule(initRule)
     initGroup.addRule(xRule)
 
-    let secondRule = new RadiusRule(OperatorTypes.LT, {x: 100, y: 100}, 45) 
+    let secondRule = new Rules.Radius(OperatorTypes.LT, {x: 100, y: 100}, 45) 
     let secondGroup = new RuleGroup();
     secondGroup.addRule(secondRule)
 
-    let tRule = new RadiusRule(OperatorTypes.LT, {x: 100, y: 100}, 65) 
+    let tRule = new Rules.Radius(OperatorTypes.LT, {x: 100, y: 100}, 65) 
     let tGroup = new RuleGroup();
     tGroup.addRule(tRule)
 
