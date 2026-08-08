@@ -241,7 +241,7 @@
       }
     }    
 
-    class TransformModify {
+    class TransformModifyFunction {
       static scale(c, shape, scalar) {
         // scale shape's points based on scalar
         for (let p of shape.points) {
@@ -269,6 +269,24 @@
           point.x = centre.x + dx * cos - dy * sin;
           point.y = centre.y + dx * sin + dy * cos
         }
+      }
+    }
+
+    const TransformModifiers = {
+      Scale: class {
+        humanName = "Scale"
+        modify = TransformModifyFunction.scale
+        // TODO: remember my frickin this binding rules for lambdas
+        renderInputs = function() {return `<label>${this.humanName}</label>`}        
+        constructor() {
+        }
+        
+      },
+      RotateInPlace: class {
+        humanName = "Rotate in place"
+        modify = TransformModifyFunction.rotateInplace      
+        renderInputs = function() {return `<label>${this.humanName}</label>`}
+        constructor(){}
       }
     }
 
@@ -322,12 +340,12 @@
 
       apply(c, g) {
         for (let p of g) {
-          this.transformModify(c, p, this.transformField.value(c, p.centre))
+          this.transformModify.modify(c, p, this.transformField.value(c, p.centre))
         }
       }
 
       renderInputs() {
-        return 'Do a thing to the shape ' + this.transformField.renderInputs()
+        return this.transformModify.renderInputs() + this.transformField.renderInputs()
       }
     }
 
@@ -445,13 +463,13 @@
     let squareGen = new GridGen(10, 15, 20, 20, SHAPES.square, 8)
 
     let yScaleXform = new Transform()
-    yScaleXform.transformModify = TransformModify.scale
+    yScaleXform.transformModify = new TransformModifiers.Scale
     yScaleXform.transformField = new YLinearTransformField()
     yScaleXform.transformField.min = 0.3
     yScaleXform.transformField.max = 1.0
 
     let xRotateXform = new Transform()
-    xRotateXform.transformModify = TransformModify.rotateInplace
+    xRotateXform.transformModify = new TransformModifiers.RotateInPlace
     xRotateXform.transformField = new XLinearTransformField()
     xRotateXform.transformField.min = -0.1
     xRotateXform.transformField.max = 0.5; // Math.PI/6
