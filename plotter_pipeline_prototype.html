@@ -159,11 +159,11 @@
         }
       },
       'arrow': function(p) {
-        p.points = [{x: p.centre.x, y: p.centre.y - p.radius}, 
-                    {x: p.centre.x, y: p.centre.y + p.radius}, 
-                    {x: p.centre.x + p.radius/2, y: p.centre.y + p.radius / 2}, 
-                    {x: p.centre.x - p.radius/2, y: p.centre.y + p.radius / 2},
-                    {x: p.centre.x, y: p.centre.y + p.radius}];
+        p.points = [{x: p.centre.x, y: p.centre.y + p.radius}, 
+                    {x: p.centre.x, y: p.centre.y - p.radius}, 
+                    {x: p.centre.x + p.radius/2, y: p.centre.y - p.radius / 2}, 
+                    {x: p.centre.x - p.radius/2, y: p.centre.y - p.radius / 2},
+                    {x: p.centre.x, y: p.centre.y - p.radius}];
         p.close = false;
       }
     }
@@ -341,11 +341,12 @@
       random;
       steps;
 
-      constructor(min = 0, max = 1, bv = 0, random = false, steps = 0) {
+      constructor(min = 0, max = 1, bv = 0, random = false, randomSign = false, steps = 0) {
         this.min = min;
         this.max = max;
         this.baseValue = bv; // 1 for multiplicative transforms, 0 for additive
         this.random = random;
+        this.randomSign = randomSign;
         this.steps = steps; 
       }
 
@@ -354,6 +355,12 @@
 
         // Seed the PRNG with the config random seed and the point's position
         let p = seededRand(c, point.x + ", " + point.y)
+
+        if (this.randomSign) {
+          if (seededRand(c, point.x + " - " + point.y) < 0.5) {
+            p = 0-p;
+          }
+        }
 
         // lerp between baseValue and value based on rnd[0,1)
         return ((value * p) + (this.baseValue * (1-p)))
@@ -542,7 +549,7 @@
     }
 
     // let staggeredHexGen = new Generators.StaggeredGrid(15, 10, 15, 15, SHAPES.hexagon, 6)
-    let squareGen = new Generators.Grid(12, 8, 15, 15, SHAPES.arrow, 5)
+    let squareGen = new Generators.Grid(18, 12, 20, 20, SHAPES.arrow, 5)
 
     let yScaleXform = new Transform()
     yScaleXform.transformModify = new TransformModifiers.Scale
@@ -550,11 +557,11 @@
 
     let yRotateJitter = new Transform()
     yRotateJitter.transformModify = new TransformModifiers.RotateInPlace
-    yRotateJitter.transformField = new TransformFields.YLinear(0, 3.141, 0, true, 0)
+    yRotateJitter.transformField = new TransformFields.YLinear(0, 1.57, 0, true, true, 0)
 
-    let yRotateCompensate = new Transform()
-    yRotateCompensate.transformModify = new TransformModifiers.RotateInPlace
-    yRotateCompensate.transformField = new TransformFields.YLinear(0, -0.01, 0, false, 0)
+    // let yRotateCompensate = new Transform()
+    // yRotateCompensate.transformModify = new TransformModifiers.RotateInPlace
+    // yRotateCompensate.transformField = new TransformFields.YLinear(0, -0.78, 0, false, 0)
 
     let initRule = new Rules.Radius(OperatorTypes.LT, {x: 100, y: 100}, 30) 
     let xRule = new Rules.XRule(OperatorTypes.GT, 100);
@@ -586,12 +593,12 @@
     defaultSet.colour = 'black'
 
     let config = {
-      randomSeed: 1,
+      randomSeed: 2,
       doc: {
         w: 200, h: 200
       },
       generators: [squareGen], /* staggeredHexGen */
-      transforms: [yRotateJitter, yRotateCompensate], /*yScaleXform*/
+      transforms: [yRotateJitter], /*yScaleXform*/
       ruleSets: [ defaultSet] /* initSet, secondSet, tSet, */
     }
 
