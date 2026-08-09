@@ -356,7 +356,7 @@
         let p = seededRand(c, point.x + ", " + point.y)
 
         // lerp between baseValue and value based on rnd[0,1)
-        return ((value * p) + (this.baseValue * (1-p))) / 2
+        return ((value * p) + (this.baseValue * (1-p)))
       }
 
       // Put value into one of n equally likely buckets between min and max inclusive
