@@ -314,6 +314,18 @@
           point.y = centre.y + dx * sin + dy * cos
         }
       }
+
+      static translateX(c, shape, d) {
+        for (let point of shape.points) {  
+          point.x = point.x + d
+        }        
+      }
+
+      static translateY(c, shape, d) {
+        for (let point of shape.points) {  
+          point.y = point.y + d
+        }        
+      }      
     }
 
     const TransformModifiers = {
@@ -331,7 +343,19 @@
         modify = TransformModifyFunction.rotateInplace      
         renderInputs = function() {return `<label>${this.humanName}</label>`}
         constructor(){}
-      }
+      },
+      TranslateX:  class {
+        humanName = "Move X"
+        modify = TransformModifyFunction.translateX      
+        renderInputs = function() {return `<label>${this.humanName}</label>`}
+        constructor(){}
+      },
+      TranslateY:  class {
+        humanName = "Move Y"
+        modify = TransformModifyFunction.translateY      
+        renderInputs = function() {return `<label>${this.humanName}</label>`}
+        constructor(){}
+      },
     }
 
     class TransformField {
@@ -549,7 +573,7 @@
     }
 
     // let staggeredHexGen = new Generators.StaggeredGrid(15, 10, 15, 15, SHAPES.hexagon, 6)
-    let squareGen = new Generators.Grid(18, 12, 20, 20, SHAPES.arrow, 5)
+    let squareGen = new Generators.Grid(18, 12, 10, 10, SHAPES.square, 5)
 
     let yScaleXform = new Transform()
     yScaleXform.transformModify = new TransformModifiers.Scale
@@ -557,7 +581,15 @@
 
     let yRotateJitter = new Transform()
     yRotateJitter.transformModify = new TransformModifiers.RotateInPlace
-    yRotateJitter.transformField = new TransformFields.YLinear(0, 1.57, 0, true, true, 0)
+    yRotateJitter.transformField = new TransformFields.YLinear(0, 1, 0, true, true, 0)
+
+    let yTransX = new Transform()
+    yTransX.transformModify = new TransformModifiers.TranslateX
+    yTransX.transformField = new TransformFields.YLinear(0, 6, 0, true, true, 0)
+
+    let yTransY = new Transform()
+    yTransY.transformModify = new TransformModifiers.TranslateY
+    yTransY.transformField = new TransformFields.YLinear(0, 6, 0, true, true, 0)    
 
     // let yRotateCompensate = new Transform()
     // yRotateCompensate.transformModify = new TransformModifiers.RotateInPlace
@@ -598,7 +630,7 @@
         w: 200, h: 200
       },
       generators: [squareGen], /* staggeredHexGen */
-      transforms: [yRotateJitter], /*yScaleXform*/
+      transforms: [yRotateJitter, yTransX, yTransY], /*yScaleXform*/
       ruleSets: [ defaultSet] /* initSet, secondSet, tSet, */
     }
 
