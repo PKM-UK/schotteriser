@@ -37,6 +37,20 @@
       border: 1px solid black;
       margin-bottom: 1em;
     }
+
+    .step-group input {
+      width: 2em;
+    }
+
+    input {
+      -moz-appearance: textfield;
+    }
+    
+    input::-webkit-outer-spin-button,
+    input::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
     
   </style>
 </head>
@@ -237,53 +251,63 @@
           return `<label>Hex grid</label>
                   <label>Rows <input id='${this.elementId}-rows' type=number value=${this.rows}></label>
                   <label>Cols <input id='${this.elementId}-cols' type=number value=${this.cols}></label>
+                  <label>Row spacing <input id='${this.elementId}-xs' type=number value=${this.y_spacing}></label>
+                  <label>Col spacing <input id='${this.elementId}-ys' type=number value=${this.x_spacing}></label>
                   <label>Base radius <input id='${this.elementId}-radius' type=number step=0.1 value=${this.radius}></label>`
+        }
+        getInputs() {
+          this.cols = document.getElementById(this.elementId + '-cols').value;
         }
       }
 
       , Grid: class GridGen extends Generator {
-      humanName = "Square grid"
-      rows;
-      cols;
-      x_spacing;
-      y_spacing;
-      elementId;
+        humanName = "Square grid"
+        rows;
+        cols;
+        x_spacing;
+        y_spacing;
+        elementId;
 
-      constructor(rows, cols, sx, sy, shape, radius) {
-        super(shape)
-        this.rows = rows;
-        this.cols = cols;
-        this.x_spacing = sx;
-        this.y_spacing = sy;
-        this.shape = shape;
-        this.radius = radius
+        constructor(rows, cols, sx, sy, shape, radius) {
+          super(shape)
+          this.rows = rows;
+          this.cols = cols;
+          this.x_spacing = sx;
+          this.y_spacing = sy;
+          this.shape = shape;
+          this.radius = radius
 
-        this.elementId = this.id + '-grid'
-      }
-
-      generatePoints(c) {
-        let g = [];
-        for (let r = 0; r < this.rows; r++){ 
-          for (let col = 0; col < this.cols; col++) {
-            let x = (col + 1) * this.x_spacing, y = (r + 1) * this.y_spacing;
-            // push a shape with a centre and radius to g
-            g.push({
-              centre: {
-                x, y
-              }, radius: this.radius, angle: 0, points: []
-            })
-          }
+          this.elementId = this.id + '-grid'
         }
-        return g
-      }
 
-      renderInputs() {
-        return `<label>Square grid</label>
-                <label>Rows <input id='${this.elementId}-rows' type=number value=${this.rows}></label>
-                <label>Cols <input id='${this.elementId}-cols' type=number value=${this.cols}></label>
-                <label>Base radius <input id='${this.elementId}-radius' type=number step=0.1 value=${this.radius}></label>`
-      }
-    }    
+        generatePoints(c) {
+          let g = [];
+          for (let r = 0; r < this.rows; r++){ 
+            for (let col = 0; col < this.cols; col++) {
+              let x = (col + 1) * this.x_spacing, y = (r + 1) * this.y_spacing;
+              // push a shape with a centre and radius to g
+              g.push({
+                centre: {
+                  x, y
+                }, radius: this.radius, angle: 0, points: []
+              })
+            }
+          }
+          return g
+        }
+
+        renderInputs() {
+          return `<label>Hex grid</label>
+                    <label>Rows <input id='${this.elementId}-rows' type=number value=${this.rows}></label>
+                    <label>Cols <input id='${this.elementId}-cols' type=number value=${this.cols}></label>
+                    <label>Row spacing <input id='${this.elementId}-xs' type=number value=${this.y_spacing}></label>
+                    <label>Col spacing <input id='${this.elementId}-ys' type=number value=${this.x_spacing}></label>
+                    <label>Base radius <input id='${this.elementId}-radius' type=number step=0.1 value=${this.radius}></label>`
+        }
+        getInputs() {
+          this.cols = document.getElementById(this.elementId + '-cols').value;
+        }
+      }    
     }
     class TransformModifyFunction {
       static scale(c, shape, scalar) {
@@ -316,13 +340,16 @@
       }
 
       static translateX(c, shape, d) {
+        // Move centre so subsequent rotates do rotate in place
+        shape.centre.x = shape.centre.x + d
         for (let point of shape.points) {  
           point.x = point.x + d
         }        
       }
 
       static translateY(c, shape, d) {
-        for (let point of shape.points) {  
+        shape.centre.y = shape.centre.y + d
+        for (let point of shape.points) {
           point.y = point.y + d
         }        
       }      
@@ -421,7 +448,7 @@
           return this.min + (this.max * point.y / c.doc.h)
         }
         renderInputs() {
-          return `<label>by Y coordinate from <input id='${this.elementId}-min' type=number value=${this.min}>x to <input id='${this.elementId}-min' type=number value=${this.max}>x</label>`
+          return `<label>by Y from <input id='${this.elementId}-min' type=number value=${this.min}> to <input id='${this.elementId}-min' type=number value=${this.max}></label>`
         }      
       }
 
@@ -432,7 +459,7 @@
         }
 
         renderInputs() {
-          return `<label>by X coordinate from <input id='${this.elementId}-min' type=number value=${this.min}>x to <input id='${this.elementId}-min' type=number value=${this.max}>x</label>`
+          return `<label>by X from <input id='${this.elementId}-min' type=number value=${this.min}> to <input id='${this.elementId}-min' type=number value=${this.max}></label>`
         }       
       }
     }
@@ -514,7 +541,10 @@
         }
         renderInputs() {
           return `<label>X ${this.operator} <input id='${this.id}-limit' type=number value=${this.limit}></label>`
-        }      
+        }
+        getInputs() {
+
+        }
       }
     }
     const RuleGroup = class {
@@ -573,27 +603,33 @@
     }
 
     // let staggeredHexGen = new Generators.StaggeredGrid(15, 10, 15, 15, SHAPES.hexagon, 6)
-    let squareGen = new Generators.Grid(18, 12, 10, 10, SHAPES.square, 5)
-
-    let yScaleXform = new Transform()
-    yScaleXform.transformModify = new TransformModifiers.Scale
-    yScaleXform.transformField = new TransformFields.YLinear(0.3, 1.8, 1, true) // , false, 0
-
-    let yRotateJitter = new Transform()
-    yRotateJitter.transformModify = new TransformModifiers.RotateInPlace
-    yRotateJitter.transformField = new TransformFields.YLinear(0, 1, 0, true, true, 0)
+    let squareGen = new Generators.Grid(9, 8, 20, 20, SHAPES.square, 5)
 
     let yTransX = new Transform()
-    yTransX.transformModify = new TransformModifiers.TranslateX
-    yTransX.transformField = new TransformFields.YLinear(0, 6, 0, true, true, 0)
+    yTransX.transformModify = new TransformModifiers.TranslateY
+    yTransX.transformField = new TransformFields.YLinear(0, 20, 0)
 
-    let yTransY = new Transform()
-    yTransY.transformModify = new TransformModifiers.TranslateY
-    yTransY.transformField = new TransformFields.YLinear(0, 6, 0, true, true, 0)    
+    let yRotate = new Transform()
+    yRotate.transformModify = new TransformModifiers.RotateInPlace
+    yRotate.transformField = new TransformFields.YLinear(0, 3, 0)    
 
-    // let yRotateCompensate = new Transform()
-    // yRotateCompensate.transformModify = new TransformModifiers.RotateInPlace
-    // yRotateCompensate.transformField = new TransformFields.YLinear(0, -0.78, 0, false, 0)
+    // let yScaleXform = new Transform()
+    // yScaleXform.transformModify = new TransformModifiers.Scale
+    // yScaleXform.transformField = new TransformFields.YLinear(0.3, 1.8, 1, true) // , false, 0
+
+    // SCHOTTER
+    // let yRotateJitter = new Transform()
+    // yRotateJitter.transformModify = new TransformModifiers.RotateInPlace
+    // yRotateJitter.transformField = new TransformFields.YLinear(0, 1, 0, true, true, 0)
+
+    // let yTransX = new Transform()
+    // yTransX.transformModify = new TransformModifiers.TranslateX
+    // yTransX.transformField = new TransformFields.YLinear(0, 6, 0, true, true, 0)
+
+    // let yTransY = new Transform()
+    // yTransY.transformModify = new TransformModifiers.TranslateY
+    // yTransY.transformField = new TransformFields.YLinear(0, 6, 0, true, true, 0)    
+
 
     let initRule = new Rules.Radius(OperatorTypes.LT, {x: 100, y: 100}, 30) 
     let xRule = new Rules.XRule(OperatorTypes.GT, 100);
@@ -630,7 +666,7 @@
         w: 200, h: 200
       },
       generators: [squareGen], /* staggeredHexGen */
-      transforms: [yRotateJitter, yTransX, yTransY], /*yScaleXform*/
+      transforms: [yTransX, yRotate], /*yScaleXform*/
       ruleSets: [ defaultSet] /* initSet, secondSet, tSet, */
     }
 
@@ -703,14 +739,6 @@
     }
 
     function buildUI(c) {
-
-      /* <label>Generators</label>
-      <div id="generators-ui" class="step-group"></div>
-      <label>Transforms</label>
-      <div id="transforms-ui" class="step-group"></div>
-      <label>Rules</label>
-      <div id="rules-ui" class="step-group"></div> */
-
       ui = ""
       ui = ui + "<div id='generators-ui' class='step-group'>"
       for (gen of c.generators) {
@@ -751,10 +779,11 @@
       //   find inputs from its id
       //   (get the rule/gen/xform id, ask it what fields it wants, get those elements, get input values, setValues on rule)
       //   change the config accordingly
-      pipelineSteps = []
+      pipelineSteps = c.generators
+      pipelineSteps.concat(c.transforms)
       // populate with gens and xforms
       for (let r of c.ruleSets) {
-        pipelineSteps = [...pipelineSteps, ...r.allRules()]
+        pipelineSteps = pipelineSteps.concat(r.allRules())
       }
 
       for (let s of pipelineSteps) {
