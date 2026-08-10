@@ -145,6 +145,12 @@
       }
       setValues(v) {
       }
+      getInput(id) {
+        let inputType = document.getElementById(this.elementId + id).type;
+        if (inputType == "number") return +document.getElementById(this.elementId + id).value;
+        if (inputType == "checkbox") return document.getElementById(this.elementId + id).checked;
+      }
+
     }
 
     // A Generator has a generatePoints anda generateGeometry function
@@ -248,15 +254,19 @@
         }
 
         renderInputs() {
-          return `<label>Hex grid</label>
+          return `<label>${this.humanName}</label>
                   <label>Rows <input id='${this.elementId}-rows' type=number value=${this.rows}></label>
                   <label>Cols <input id='${this.elementId}-cols' type=number value=${this.cols}></label>
-                  <label>Row spacing <input id='${this.elementId}-xs' type=number value=${this.y_spacing}></label>
-                  <label>Col spacing <input id='${this.elementId}-ys' type=number value=${this.x_spacing}></label>
+                  <label>Row spacing <input id='${this.elementId}-ys' type=number value=${this.y_spacing}></label>
+                  <label>Col spacing <input id='${this.elementId}-xs' type=number value=${this.x_spacing}></label>
                   <label>Base radius <input id='${this.elementId}-radius' type=number step=0.1 value=${this.radius}></label>`
         }
         getInputs() {
-          this.cols = document.getElementById(this.elementId + '-cols').value;
+          this.cols = this.getInput('-cols');
+          this.rows = this.getInput('-rows');
+          this.x_spacing = this.getInput('-xs');
+          this.y_spacing = this.getInput('-ys');
+          this.radius = this.getInput('-radius');
         }
       }
 
@@ -297,15 +307,19 @@
         }
 
         renderInputs() {
-          return `<label>Hex grid</label>
-                    <label>Rows <input id='${this.elementId}-rows' type=number value=${this.rows}></label>
-                    <label>Cols <input id='${this.elementId}-cols' type=number value=${this.cols}></label>
-                    <label>Row spacing <input id='${this.elementId}-xs' type=number value=${this.y_spacing}></label>
-                    <label>Col spacing <input id='${this.elementId}-ys' type=number value=${this.x_spacing}></label>
-                    <label>Base radius <input id='${this.elementId}-radius' type=number step=0.1 value=${this.radius}></label>`
+          return `<label>${this.humanName}</label>
+                  <label>Rows <input id='${this.elementId}-rows' type=number value=${this.rows}></label>
+                  <label>Cols <input id='${this.elementId}-cols' type=number value=${this.cols}></label>
+                  <label>Row spacing <input id='${this.elementId}-ys' type=number value=${this.y_spacing}></label>
+                  <label>Col spacing <input id='${this.elementId}-xs' type=number value=${this.x_spacing}></label>
+                  <label>Base radius <input id='${this.elementId}-radius' type=number value=${this.radius}></label>`
         }
         getInputs() {
-          this.cols = document.getElementById(this.elementId + '-cols').value;
+          this.cols = this.getInput('-cols');
+          this.rows = this.getInput('-rows');
+          this.x_spacing = this.getInput('-xs');
+          this.y_spacing = this.getInput('-ys');
+          this.radius = this.getInput('-radius');
         }
       }    
     }
@@ -360,7 +374,7 @@
         humanName = "Scale"
         modify = TransformModifyFunction.scale
         // TODO: remember my frickin this binding rules for lambdas
-        renderInputs = function() {return `<label>${this.humanName}</label>`}        
+        renderInputs = function() {return `<label>${this.humanName}</label>`}
         constructor() {
         }
         
@@ -385,7 +399,7 @@
       },
     }
 
-    class TransformField {
+    class TransformField extends PipelineStep {
       min;
       max;
       baseValue;
@@ -393,6 +407,7 @@
       steps;
 
       constructor(min = 0, max = 1, bv = 0, random = false, randomSign = false, steps = 0) {
+        super()
         this.min = min;
         this.max = max;
         this.baseValue = bv; // 1 for multiplicative transforms, 0 for additive
@@ -420,6 +435,7 @@
       // Put value into one of n equally likely buckets between min and max inclusive
       discretise(value) {
         if (this.steps == 0) return value;
+        if (this.max == this.min) return this.min; // guard against /0
         // Lets pretend min = 5, max = 10 and steps = 3, p = 7
         let p = (value - this.min) / (this.max - this.min) // Normalise to 0 to 1 - gives us 0.4
         p = p * this.steps                                 // Normalise to 0 to steps - gives us 1.2
@@ -443,24 +459,40 @@
 
     const TransformFields = {
       YLinear: class YLinearTransformField extends TransformField {
-
+        constructor() {
+          super()
+          this.elementId = this.id + '-ylinear'
+        }
         value(c, point) {
           return this.min + (this.max * point.y / c.doc.h)
         }
         renderInputs() {
-          return `<label>by Y from <input id='${this.elementId}-min' type=number value=${this.min}> to <input id='${this.elementId}-min' type=number value=${this.max}></label>`
-        }      
+          return `<label>by Y from <input id='${this.elementId}-min' type=number value=${this.min}> to <input id='${this.elementId}-max' type=number value=${this.max}></label>
+                  <label>🎲 <input id='${this.elementId}-rnd' type='checkbox' value='splooge'/> 📊 <input id='${this.elementId}-steps' type=number value=${this.steps}>`
+        }
+        getInputs(){
+          this.min = this.getInput('-min');
+          this.max = this.getInput('-max');
+          this.random = this.getInput('-rnd');
+          this.steps = this.getInput('-steps');
+        }
       }
 
       , XLinear: class XLinearTransformField extends TransformField {
-
+        constructor() {
+          super()
+          this.elementId = this.id + '-xlinear'
+        }
         value(c, point) {
           return this.min + (this.max * point.x / c.doc.w)
         }
-
         renderInputs() {
-          return `<label>by X from <input id='${this.elementId}-min' type=number value=${this.min}> to <input id='${this.elementId}-min' type=number value=${this.max}></label>`
-        }       
+          return `<label>by X from <input id='${this.elementId}-min' type=number value=${this.min}> to <input id='${this.elementId}-max' type=number value=${this.max}></label>`
+        }
+        getInputs(){
+          this.min = this.getInput('-min');
+          this.max = this.getInput('-max');
+        }
       }
     }
     // TRANSFORMS
@@ -485,6 +517,11 @@
 
       renderInputs() {
         return this.transformModify.renderInputs() + this.transformField.renderInputs()
+      }
+
+      getInputs() {
+        // this.transformModify.getInputs(); // enable this if modifys ever get inputs
+        this.transformField.getInputs();
       }
     }
 
@@ -779,8 +816,7 @@
       //   find inputs from its id
       //   (get the rule/gen/xform id, ask it what fields it wants, get those elements, get input values, setValues on rule)
       //   change the config accordingly
-      pipelineSteps = c.generators
-      pipelineSteps.concat(c.transforms)
+      pipelineSteps = c.generators.concat(c.transforms)
       // populate with gens and xforms
       for (let r of c.ruleSets) {
         pipelineSteps = pipelineSteps.concat(r.allRules())
