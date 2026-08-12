@@ -225,7 +225,7 @@
         y_spacing;
         elementId;
 
-        constructor(rows, cols, sx, sy, shape, radius) {
+        constructor(rows = 1, cols = 1, sx = 10, sy = 10, shape = SHAPES.hexagon, radius = 5) {
           super(shape)
           this.rows = rows;
           this.cols = cols;
@@ -278,7 +278,7 @@
         y_spacing;
         elementId;
 
-        constructor(rows, cols, sx, sy, shape, radius) {
+        constructor(rows = 1, cols = 1, sx = 10, sy = 10, shape = SHAPES.square, radius = 5) {
           super(shape)
           this.rows = rows;
           this.cols = cols;
@@ -464,7 +464,7 @@
           this.elementId = this.id + '-ylinear'
         }
         value(c, point) {
-          return this.min + (this.max * point.y / c.doc.h)
+          return this.min + ((this.max - this.min) * point.y / c.doc.h)
         }
         renderInputs() {
           return `<label>by Y from <input id='${this.elementId}-min' type=number value=${this.min}> to <input id='${this.elementId}-max' type=number value=${this.max}></label>
@@ -484,10 +484,11 @@
           this.elementId = this.id + '-xlinear'
         }
         value(c, point) {
-          return this.min + (this.max * point.x / c.doc.w)
+          return this.min + ((this.max - this.min) * point.x / c.doc.w)
         }
         renderInputs() {
-          return `<label>by X from <input id='${this.elementId}-min' type=number value=${this.min}> to <input id='${this.elementId}-max' type=number value=${this.max}></label>`
+          return `<label>by X from <input id='${this.elementId}-min' type=number value=${this.min}> to <input id='${this.elementId}-max' type=number value=${this.max}></label>
+                  <label>🎲 <input id='${this.elementId}-rnd' type='checkbox' value='splooge'/> 📊 <input id='${this.elementId}-steps' type=number value=${this.steps}>`
         }
         getInputs(){
           this.min = this.getInput('-min');
@@ -639,6 +640,15 @@
       }
     }
 
+    // ------------ NEW PIPELINESTEP FUNCTIONS ------------------
+
+    function newGen(type) {
+      let newGen = new Generators[type]
+      // TODO: I'm using config in global scope. This isn't how the rest of it works...?
+      config.generators.push(newGen)
+      document.getElementById('whole-ui').innerHTML = buildUI(config);
+      window.setTimeout(500, () => recalculate())
+    }
     // let staggeredHexGen = new Generators.StaggeredGrid(15, 10, 15, 15, SHAPES.hexagon, 6)
     let squareGen = new Generators.Grid(9, 8, 20, 20, SHAPES.square, 5)
 
@@ -781,7 +791,8 @@
       for (gen of c.generators) {
         ui = ui + gen.renderInputs()
       }
-      ui = ui + "</div>"
+
+      ui = ui + "<button onclick='newGen(\"Grid\")'>New generator</button></div>"
 
       ui = ui + "<div id='transforms-ui' class='step-group'>"
       for (xform of c.transforms) {
