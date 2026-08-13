@@ -42,6 +42,10 @@
       width: 2em;
     }
 
+    .step-container {
+      border: 1px solid black;
+    }
+
     input {
       -moz-appearance: textfield;
     }
@@ -140,8 +144,9 @@
       getInputs() {
         console.log('Superclass getting inputs for ' + this.id)
       }
-      renderInputs() {
-        throw new Error('Undefined PipelineStep renderInputs called')
+      renderGenericInputs(elementId) {
+        const clickHandler = "removeStep('" + elementId + "')"
+        return '<button style="float: right;" onclick="' + clickHandler + '">X</button>';
       }
       setValues(v) {
       }
@@ -218,7 +223,7 @@
 
     const Generators = {
       StaggeredGrid: class StaggeredGridGen extends Generator {
-        humanName = "Hex grid";
+        static humanName = "Hex grid";
         rows;
         cols;
         x_spacing;
@@ -254,7 +259,7 @@
         }
 
         renderInputs() {
-          return `<label>${this.humanName}</label>
+          return this.renderGenericInputs(this.elementId) + `<label>${this.constructor.humanName}</label>
                   <label>Rows <input id='${this.elementId}-rows' type=number value=${this.rows}></label>
                   <label>Cols <input id='${this.elementId}-cols' type=number value=${this.cols}></label>
                   <label>Row spacing <input id='${this.elementId}-ys' type=number value=${this.y_spacing}></label>
@@ -271,7 +276,7 @@
       }
 
       , Grid: class GridGen extends Generator {
-        humanName = "Square grid"
+        static humanName = "Square grid"
         rows;
         cols;
         x_spacing;
@@ -307,7 +312,7 @@
         }
 
         renderInputs() {
-          return `<label>${this.humanName}</label>
+          return this.renderGenericInputs(this.elementId) + `<label>${this.constructor.humanName}</label>
                   <label>Rows <input id='${this.elementId}-rows' type=number value=${this.rows}></label>
                   <label>Cols <input id='${this.elementId}-cols' type=number value=${this.cols}></label>
                   <label>Row spacing <input id='${this.elementId}-ys' type=number value=${this.y_spacing}></label>
@@ -642,12 +647,15 @@
 
     // ------------ NEW PIPELINESTEP FUNCTIONS ------------------
 
-    function newGen(type) {
+    function newGen() {
+      let type = document.getElementById("new-gen-type").value;
       let newGen = new Generators[type]
       // TODO: I'm using config in global scope. This isn't how the rest of it works...?
       config.generators.push(newGen)
-      document.getElementById('whole-ui').innerHTML = buildUI(config);
-      window.setTimeout(500, () => recalculate())
+      refresh(); 
+
+      // document.getElementById('whole-ui').innerHTML = buildUI(config);
+      // window.setTimeout(recalculate, 0)
     }
     // let staggeredHexGen = new Generators.StaggeredGrid(15, 10, 15, 15, SHAPES.hexagon, 6)
     let squareGen = new Generators.Grid(9, 8, 20, 20, SHAPES.square, 5)
@@ -714,7 +722,7 @@
       },
       generators: [squareGen], /* staggeredHexGen */
       transforms: [yTransX, yRotate], /*yScaleXform*/
-      ruleSets: [ defaultSet] /* initSet, secondSet, tSet, */
+      ruleSets: [ initSet, secondSet, tSet, defaultSet] /* initSet, secondSet, tSet, */
     }
 
     function generateGeometry(c) {
@@ -779,20 +787,63 @@
       view.innerHTML = ""; current = l; view.innerHTML = svgText(l, "all")
     }
 
+    function refresh() {
+      document.getElementById('whole-ui').innerHTML = buildUI(config);
+      recalculate();
+    }
+
     function recalculate() {
       let c = config;
       updateRules(c);
       render(assignLayers(applyTransforms(generateGeometry(c), c), c));
     }
 
+    function removeStep(elementId) {
+      // Remove from DOM
+      // document.getElementById(elementId + '-container').remove()
+
+      let removed = false;
+
+      // Remove from config
+      for (g in config.generators) {
+        if (g.elementId = elementId) {
+          config.generators.splice(g, 1);
+          removed = true;
+          break;
+        }
+      }
+      if (!removed) {
+        for (g in config.transforms) {
+          if (g.elementId = elementId) {
+            config.transforms.splice(g, 1);
+            break;
+          }
+        }
+      }
+      if (!removed) {
+        for (g in config.ruleSets) {
+          if (g.elementId = elementId) {
+            config.ruleSets.splice(g, 1);
+            break;
+          }
+        }
+      }
+
+      refresh()
+    }
+
     function buildUI(c) {
       ui = ""
       ui = ui + "<div id='generators-ui' class='step-group'>"
       for (gen of c.generators) {
-        ui = ui + gen.renderInputs()
+        ui = ui + "<div class='step-container' id='" + gen.elementId + "-container'>" + gen.renderInputs() + "</div>"
       }
 
-      ui = ui + "<button onclick='newGen(\"Grid\")'>New generator</button></div>"
+      ui = ui + "<button onclick='newGen()'>New </button><select id='new-gen-type'>"
+      for (let gt in Generators) {
+        ui = ui + `<option value=${gt}>${Generators[gt].humanName}</option>`
+      }
+      ui = ui + "</select></div>"
 
       ui = ui + "<div id='transforms-ui' class='step-group'>"
       for (xform of c.transforms) {
