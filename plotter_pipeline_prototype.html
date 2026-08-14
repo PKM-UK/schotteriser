@@ -473,12 +473,15 @@
         }
         renderInputs() {
           return `<label>by Y from <input id='${this.elementId}-min' type=number value=${this.min}> to <input id='${this.elementId}-max' type=number value=${this.max}></label>
-                  <label>🎲 <input id='${this.elementId}-rnd' type='checkbox' value='splooge'/> 📊 <input id='${this.elementId}-steps' type=number value=${this.steps}>`
+                  <label>🎲 <input id='${this.elementId}-rnd' type='checkbox' value='splooge' ${this.random ? ' checked' : ''}/> 
+                    ↔ <input id='${this.elementId}-rndsign' type='checkbox' value='splooge' ${this.randomSign ? ' checked' : ''}/>
+                    📊 <input id='${this.elementId}-steps' type=number value=${this.steps}>`
         }
         getInputs(){
           this.min = this.getInput('-min');
           this.max = this.getInput('-max');
           this.random = this.getInput('-rnd');
+          this.randomSign = this.getInput('-rndsign');
           this.steps = this.getInput('-steps');
         }
       }
@@ -493,7 +496,9 @@
         }
         renderInputs() {
           return `<label>by X from <input id='${this.elementId}-min' type=number value=${this.min}> to <input id='${this.elementId}-max' type=number value=${this.max}></label>
-                  <label>🎲 <input id='${this.elementId}-rnd' type='checkbox' value='splooge'/> 📊 <input id='${this.elementId}-steps' type=number value=${this.steps}>`
+                  <label>🎲 <input id='${this.elementId}-rnd' type='checkbox' value='splooge' ${this.random ? ' checked' : ''}/>
+                    ↔ <input id='${this.elementId}-rndsign' type='checkbox' value='splooge' ${this.randomSign ? ' checked' : ''}/>
+                    📊 <input id='${this.elementId}-steps' type=number value=${this.steps}>`
         }
         getInputs(){
           this.min = this.getInput('-min');
@@ -671,15 +676,15 @@
     }
 
     // let staggeredHexGen = new Generators.StaggeredGrid(15, 10, 15, 15, SHAPES.hexagon, 6)
-    let squareGen = new Generators.Grid(9, 8, 20, 20, SHAPES.square, 5)
+    // let squareGen = new Generators.Grid(9, 8, 20, 20, SHAPES.square, 5)
 
-    let yTransX = new Transform()
-    yTransX.transformModify = new TransformModifiers.TranslateY
-    yTransX.transformField = new TransformFields.YLinear(0, 20, 0)
+    // let yTransX = new Transform()
+    // yTransX.transformModify = new TransformModifiers.TranslateY
+    // yTransX.transformField = new TransformFields.YLinear(0, 20, 0)
 
-    let yRotate = new Transform()
-    yRotate.transformModify = new TransformModifiers.RotateInPlace
-    yRotate.transformField = new TransformFields.YLinear(0, 3, 0)    
+    // let yRotate = new Transform()
+    // yRotate.transformModify = new TransformModifiers.RotateInPlace
+    // yRotate.transformField = new TransformFields.YLinear(0, 3, 0)    
 
     // let yScaleXform = new Transform()
     // yScaleXform.transformModify = new TransformModifiers.Scale
@@ -733,9 +738,9 @@
       doc: {
         w: 200, h: 200
       },
-      generators: [squareGen], /* staggeredHexGen */
-      transforms: [yTransX, yRotate], /*yScaleXform*/
-      ruleSets: [ initSet, secondSet, tSet, defaultSet] /* initSet, secondSet, tSet, */
+      generators: [], /* staggeredHexGen */
+      transforms: [], /*yScaleXform*/
+      ruleSets: [defaultSet] /* initSet, secondSet, tSet, */
     }
 
     function generateGeometry(c) {
