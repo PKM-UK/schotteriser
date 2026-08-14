@@ -376,30 +376,30 @@
 
     const TransformModifiers = {
       Scale: class {
-        humanName = "Scale"
+        static humanName = "Scale"
         modify = TransformModifyFunction.scale
         // TODO: remember my frickin this binding rules for lambdas
-        renderInputs = function() {return `<label>${this.humanName}</label>`}
+        renderInputs = function() {return `<label>${this.constructor.humanName}</label>`}
         constructor() {
         }
         
       },
       RotateInPlace: class {
-        humanName = "Rotate in place"
+        static humanName = "Rotate in place"
         modify = TransformModifyFunction.rotateInplace      
-        renderInputs = function() {return `<label>${this.humanName}</label>`}
+        renderInputs = function() {return `<label>${this.constructor.humanName}</label>`}
         constructor(){}
       },
       TranslateX:  class {
-        humanName = "Move X"
+        static humanName = "Move X"
         modify = TransformModifyFunction.translateX      
-        renderInputs = function() {return `<label>${this.humanName}</label>`}
+        renderInputs = function() {return `<label>${this.constructor.humanName}</label>`}
         constructor(){}
       },
       TranslateY:  class {
-        humanName = "Move Y"
+        static humanName = "Move Y"
         modify = TransformModifyFunction.translateY      
-        renderInputs = function() {return `<label>${this.humanName}</label>`}
+        renderInputs = function() {return `<label>${this.constructor.humanName}</label>`}
         constructor(){}
       },
     }
@@ -513,6 +513,7 @@
       //   call transformModify(shape, transformField(shape.centre))
       constructor() {
         super()
+        this.elementId = this.id + '-transform'
       }
 
       apply(c, g) {
@@ -522,7 +523,7 @@
       }
 
       renderInputs() {
-        return this.transformModify.renderInputs() + this.transformField.renderInputs()
+        return this.renderGenericInputs(this.elementId) + this.transformModify.renderInputs() + this.transformField.renderInputs()
       }
 
       getInputs() {
@@ -535,7 +536,7 @@
     const Rules = {
       Radius: class RadiusRule extends PipelineStep {
         humanName = "Radius"
-        elementId = this.id + '-radius';
+        
         operator;
         centre;
         radius;
@@ -544,6 +545,7 @@
           this.operator = operator;
           this.centre = centre;
           this.radius = radius;
+          this.elementId = this.id + '-radiusrule'
         }
         classify(p) {
           let r = Math.hypot(p.centre.x - this.centre.x, p.centre.y - this.centre.y);
@@ -554,7 +556,7 @@
           }
         }
         renderInputs() {
-          return `<label>Radius ${this.operator} <input id='${this.elementId}' type=number value=${this.radius}></label>`
+          return this.renderGenericInputs(this.elementId) + `<label>Radius ${this.operator} <input id='${this.elementId}' type=number value=${this.radius}></label>`
         }
         getInputs() {
           const radius = document.getElementById(this.elementId).value
@@ -574,6 +576,7 @@
           super()
           this.operator = operator;
           this.limit = limit;
+          this.elementId = this.id + '-xrule'
         }
         classify(p) {
           if (this.operator == OperatorTypes.GT) {
@@ -653,10 +656,20 @@
       // TODO: I'm using config in global scope. This isn't how the rest of it works...?
       config.generators.push(newGen)
       refresh(); 
-
-      // document.getElementById('whole-ui').innerHTML = buildUI(config);
-      // window.setTimeout(recalculate, 0)
     }
+
+    function newXform() {
+      let type = document.getElementById("new-xform-type").value;
+      
+      // Build new Transform from selected transform type - pick default Field?
+      let newTrans = new Transform()
+      newTrans.transformModify = new TransformModifiers[type]
+      newTrans.transformField = new TransformFields.YLinear(0, 0, 0)
+
+      config.transforms.push(newTrans)
+      refresh(); 
+    }
+
     // let staggeredHexGen = new Generators.StaggeredGrid(15, 10, 15, 15, SHAPES.hexagon, 6)
     let squareGen = new Generators.Grid(9, 8, 20, 20, SHAPES.square, 5)
 
@@ -806,7 +819,7 @@
 
       // Remove from config
       for (g in config.generators) {
-        if (g.elementId = elementId) {
+        if (config.generators[g].elementId == elementId) {
           config.generators.splice(g, 1);
           removed = true;
           break;
@@ -814,17 +827,20 @@
       }
       if (!removed) {
         for (g in config.transforms) {
-          if (g.elementId = elementId) {
+          if (config.transforms[g].elementId == elementId) {
             config.transforms.splice(g, 1);
+            removed = true;
             break;
           }
         }
       }
       if (!removed) {
-        for (g in config.ruleSets) {
-          if (g.elementId = elementId) {
-            config.ruleSets.splice(g, 1);
-            break;
+        for (s in config.ruleSets) {
+          for (g in config.ruleSets[s].ruleGroups) {
+            if (g.elementId == elementId) {
+              config.ruleSets[s].ruleGroups.splice(g, 1);
+              break;
+            }
           }
         }
       }
@@ -847,9 +863,13 @@
 
       ui = ui + "<div id='transforms-ui' class='step-group'>"
       for (xform of c.transforms) {
-        ui = ui + xform.renderInputs()
+        ui = ui + "<div class='step-container' id='" + gen.elementId + "-container'>" + xform.renderInputs() + "</div>"
       }
-      ui = ui + "</div>"
+      ui = ui + "<button onclick='newXform()'>New </button><select id='new-xform-type'>"
+      for (let mt in TransformModifiers) {
+        ui = ui + `<option value=${mt}>${TransformModifiers[mt].humanName}</option>`
+      }
+      ui = ui + "</select></div>"
 
       ui = ui + "<div id='rules-ui' class='step-group'>"
       for (rs of c.ruleSets) {
