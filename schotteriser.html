@@ -93,7 +93,7 @@ config object setup
 const util = {
   gid: 1,
   getGid: function() {
-    return gid++;
+    return this.gid++;
   },
 
   // Seeded PRNG stuff
@@ -148,6 +148,7 @@ let config = {
     w: 200, h: 200
   },
   pipelines: [],
+  activePipeline: null
 }
 
 // whole page stuff
@@ -232,10 +233,12 @@ let SVGbuilder = {
         }
       }
     }
+
+    return layers;
   },
 
   svgText: function (one) {
-    let layers = getLayers();
+    let layers = this.getLayers();
     // TODO: de-Schlemiel this function
     let s = `<svg xmlns="${NS}" viewBox="0 0 200 200" width="200mm" height="200mm"><rect width="200" height="200" fill="white"/>`; 
     for (const n of (one == "all" ? Object.keys(layers) : [one])) {
@@ -255,23 +258,23 @@ class Pipeline {
   transforms = []
   ruleSets = []
 
-  generateGeometry() {
+  #generateGeometry() {
     let geometry = [] 
-    for (gen of this.generators) {
-      geometry = [...geometry, ...gen.generateGeometry(c)]
+    for (const gen of this.generators) {
+      geometry = [...geometry, ...gen.generateGeometry()]
     }
 
     return geometry;
   }
 
-  applyTransforms(g) {
+  #applyTransforms(g) {
     for (const transform of this.transforms) {
       transform.apply(g)
     }
     return g;
   }
 
-  assignLayers(g) {
+  #assignLayers(g) {
     let L = {
     }; 
 
@@ -293,6 +296,10 @@ class Pipeline {
       }
     }
     return L;
+  }
+
+  getLayers() {
+    return this.#assignLayers(this.#applyTransforms(this.#generateGeometry()))
   }
 
   removeStep(elementId) {
@@ -335,20 +342,21 @@ class Pipeline {
 
 
   buildUI() {
-    ui = ''
+    let ui = ''
     ui = ui + '<div id="generators-ui" class="step-group">'
-    for (gen of this.generators) {
+    for (let gen of this.generators) {
       ui = ui + '<div class="step-container" id="' + gen.elementId + '-container">' + gen.renderInputs() + '</div>'
     }
 
     ui = ui + '<button onclick="newGen()">New </button><select id="new-gen-type">'
-    for (let gt in Generators) {
-      ui = ui + `<option value=${gt}>${Generators[gt].humanName}</option>`
+    for (let gt in Generator.patterns) {
+      ui = ui + `<option value=${gt}>${Generator.patterns[gt].humanName}</option>`
     }
     ui = ui + '</select></div>'
 
+    /*
     ui = ui + '<div id="transforms-ui" class="step-group">'
-    for (xform of this.transforms) {
+    for (let xform of this.transforms) {
       ui = ui + '<div class="step-container" id="' + gen.elementId + '-container">' + xform.renderInputs() + '</div>'
     }
     ui = ui + '<button onclick="newXform()">New </button><select id="new-xform-type">'
@@ -358,11 +366,11 @@ class Pipeline {
     ui = ui + '</select></div>'
 
     ui = ui + '<div id="rules-ui" class="step-group">'
-    for (rs of this.ruleSets) {
+    for (let rs of this.ruleSets) {
       ui = ui + '<div class="rule-set">'
-      for (rg of rs.ruleGroups) {
+      for (let rg of rs.ruleGroups) {
         ui = ui + '<div class="rule-group">'
-        for (r of rg.rules) {
+        for (let r of rg.rules) {
           // TODO: generic X remove button here
           ui = ui + '<div class="rule-element">' + r.renderInputs() + '</div>'
         }
@@ -370,6 +378,7 @@ class Pipeline {
       }
       ui = ui + rs.colour + '</div>'
     }
+      */
     ui = ui + '</div>'
 
     return ui;
@@ -394,7 +403,7 @@ class Pipeline {
 class PipelineStep {
   id;
   constructor() {
-    this.id = getGid();
+    this.id = util.getGid();
   }
   getInputs() {
     console.log('Superclass getting inputs for ' + this.id)
@@ -491,8 +500,8 @@ class Generator extends PipelineStep {
     }
   }
 
-  generateGeometry(c) {
-    let g = this.generatePoints(c)
+  generateGeometry() {
+    let g = this.generatePoints()
     for (const p of g) {
       // for each shape in the geometry,
       // populate a list of points
@@ -500,8 +509,60 @@ class Generator extends PipelineStep {
       this.shape(p)
     }
     return g
-  }      
+  }
+
+  renderInputs() {
+    return `Generator`
+  }
 }
+
+const RuleSet = class extends PipelineStep{
+  id;
+  colour;
+  ruleGroups = [];
+  constructor() { super() }
+  
+  addGroup(g) {
+    this.ruleGroups.push(g);
+  }
+
+  // return true if p satisfies ANY rule group
+  classify(p) {
+    // return true if there are no rules (default set)
+    if (this.ruleGroups.length == 0) {
+      return true;
+    }
+    for (const ruleGroup of this.ruleGroups) {
+      if (ruleGroup.classify(p)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  allRules() {
+    let op = []
+    for (let s of this.ruleGroups) {
+      for (let r of s.rules) {
+        op.push(r);
+      }
+    }
+    return op
+  }
+}
+
+let pipe = new Pipeline;
+let sqsqgen = new Generator();
+sqsqgen.generatePoints = Generator.patterns['grid'].generatePoints
+sqsqgen.shape = Generator.shapes['square']
+pipe.generators.push(sqsqgen)
+let defaultSet = new RuleSet();
+defaultSet.colour = 'black'
+pipe.ruleSets.push(defaultSet)
+config.pipelines.push(pipe)
+config.activePipeline = config.pipelines[0]
+
+refresh()
 
 // Whats the hierarchy of rules?
 // Ruleset
