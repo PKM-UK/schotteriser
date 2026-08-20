@@ -423,8 +423,11 @@ class PipelineStep {
     let inputEl = document.getElementById(this.id + '-' + attrib);
     if (inputEl != null) {
       let inputType = inputEl.type;
-      if (inputType == "number") return +document.getElementById(this.id + '-' + attrib).value;
-      if (inputType == "checkbox") return document.getElementById(this.id + '-' + attrib).checked;
+      if (inputType == 'number' || inputType == 'select-one') {
+        let valstring = document.getElementById(this.id + '-' + attrib).value;
+        if (isNaN(parseFloat(valstring))) { return valstring} else {return parseFloat(valstring)}
+      }
+      if (inputType == 'checkbox') return document.getElementById(this.id + '-' + attrib).checked;
     }
   }
 }
@@ -440,11 +443,14 @@ class Generator extends PipelineStep {
     if (!(shape in Generator.shapes) || !(pattern in Generator.patterns)) {
       throw new Error('Invalid Generator option');
     }
-    this.shape = Generator.shapes[shape];
+    this.attribs.shape = shape;
+    this.shapefn = Generator.shapes[shape];
     this.generatePoints = Generator.patterns[pattern].generatePoints;
     
     // idiot proof init blocks
     this.attribs.radius = 5; // every shape needs a radius
+    
+
     if (pattern == 'grid' || pattern == 'staggeredgrid') {
       this.attribs.rows = 10;
       this.attribs.cols = 10;
@@ -460,6 +466,9 @@ class Generator extends PipelineStep {
       this.attribs.origin_y = 100;
       this.attribs.originXLabel = 'Centre';
     }
+    // this.attribs.rnd = false;
+    // this.attribs.rndsign = false;
+    // this.attribs.steps = 0;
   }
   static shapes = {
     'hexagon': function(p) {
@@ -531,6 +540,14 @@ class Generator extends PipelineStep {
   }
 
   renderMap = {
+    'shape' : function() {
+      let ui = `<select id=${this.id + "-shape"}>`;
+      for (let shape in Generator.shapes) {
+        ui = ui + `<option value=${shape} ${shape == this.attribs.shape ? ' selected' : ''}>${shape}</option>`
+      }
+      ui = ui + '</select>'
+      return ui;
+    },
     'rows' : function() {return `<label>Rows<input id=${this.id + '-rows'} type="number" value=${this.attribs.rows} /></label>`},
     'cols' : function() {return `<label>Cols<input id=${this.id + '-cols'} type="number" value=${this.attribs.cols} /></label>`},
     'radius' : function() {return `<label>Size<input id=${this.id + '-radius'} type="number" value=${this.attribs.radius} /></label>`},
@@ -538,6 +555,10 @@ class Generator extends PipelineStep {
     'y_spacing' : function() {return `<label>Y gap<input id=${this.id + '-y_spacing'} type="number" value=${this.attribs.y_spacing} /></label>`},
     'origin_x' : function() {return `<label>${this.attribs.originXLabel}<input id=${this.id + '-origin_x'} type="number" value=${this.attribs.origin_x} />`},
     'origin_y' : function() {return `, <input id=${this.id + '-origin_y'} type="number" value=${this.attribs.origin_y}></label>`},
+    // TODO: make these self contained divs with a class making them inline-block or whatever
+    'rnd' : function() {return `<label>🎲 <input id='${this.elementId}-rnd' type='checkbox' ${this.attribs.rnd ? ' checked' : ''} />`}, 
+    'rndsign' : function() {return `↔ <input id='${this.elementId}-rndsign' type='checkbox' ${this.attribs.rndsign ? 'checked' : ''} />`},
+    'steps' : function() {return `📊 <input id='${this.elementId}-steps' type=number value=${this.steps} >`}
   }
 
       
@@ -548,7 +569,7 @@ class Generator extends PipelineStep {
       // for each shape in the geometry,
       // populate a list of points
       p.points = [];
-      this.shape(p)
+      this.shapefn(p)
     }
     return g
   }
@@ -567,8 +588,21 @@ class Generator extends PipelineStep {
   readInputs() {
     for (let attribute in this.attribs) {
       // readInput takes the input name, constructs the DOM id ("42-rows") and reads the value according to HTML input type
-      this.attribs[attribute] = this.readInput(attribute)
+      let newval = this.readInput(attribute);
+      if (newval != this.attribs[attribute]) {
+        this.attributeChange(attribute, newval)
+      }
     }
+  }
+
+  attributeChange(attribute, newval) {
+    // Special cases
+    if (attribute == 'shape') {
+      this.shapefn = Generator.shapes[newval]
+    }
+
+    // Generic change attribute value
+    this.attribs[attribute] = newval;
   }
 }
 
