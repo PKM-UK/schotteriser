@@ -190,7 +190,7 @@ function removeStepGlobal(id) {
 
 function newGenerator() {
   let type = document.getElementById('new-gen-type').value;
-  let newGen = new Generators[type]
+  let newGen = new Generator(type)
   config.activePipeline.generators.push(newGen)
   refresh(); 
 }
@@ -353,7 +353,7 @@ class Pipeline {
       ui = ui + '<div class="step-container" id="' + gen.elementId + '-container">' + gen.renderInputs() + '</div>'
     }
 
-    ui = ui + '<button onclick="newGen()">New </button><select id="new-gen-type">'
+    ui = ui + '<button onclick="newGenerator()">New </button><select id="new-gen-type">'
     for (let gt in Generator.patterns) {
       ui = ui + `<option value=${gt}>${Generator.patterns[gt].humanName}</option>`
     }
@@ -435,13 +435,13 @@ class Generator extends PipelineStep {
 
   // Call ctor with (Generator.patterns['grid'], Generator.shapes['hexagon']) or whatever
   // Or default ctor and set the fields
-  constructor(shape = 'square', pattern = 'grid') {
+  constructor(pattern = 'grid', shape = 'square') {
     super()
     if (!(shape in Generator.shapes) || !(pattern in Generator.patterns)) {
       throw new Error('Invalid Generator option');
     }
     this.shape = Generator.shapes[shape];
-    this.pattern = Generator.patterns[pattern];
+    this.generatePoints = Generator.patterns[pattern].generatePoints;
     
     // idiot proof init blocks
     this.attribs.radius = 5; // every shape needs a radius
@@ -496,9 +496,9 @@ class Generator extends PipelineStep {
       humanName: 'Hex grid',
       generatePoints: function generatePoints() {
         let g = [];
-        for (let r = 0; r < this.attribs.rows; r++){ 
+        for (let row = 0; row < this.attribs.rows; row++){ 
           for (let col = 0; col < this.attribs.cols; col++) {
-            let x = this.attribs.origin_x + col * this.attribs.x_spacing + (r % 2 ? this.attribs.x_spacing / 2 : 0), y = this.attribs.origin_y + row * this.attribs.y_spacing;
+            let x = this.attribs.origin_x + col * this.attribs.x_spacing + (row % 2 ? this.attribs.x_spacing / 2 : 0), y = this.attribs.origin_y + row * this.attribs.y_spacing;
             // push a shape with a centre and radius to g
             g.push({
               centre: {
@@ -608,9 +608,7 @@ const RuleSet = class extends PipelineStep{
 }
 
 let pipe = new Pipeline;
-let sqsqgen = new Generator();
-sqsqgen.generatePoints = Generator.patterns['grid'].generatePoints
-sqsqgen.shape = Generator.shapes['square']
+let sqsqgen = new Generator('grid', 'hexagon');
 pipe.generators.push(sqsqgen)
 let defaultSet = new RuleSet();
 defaultSet.colour = 'black'
