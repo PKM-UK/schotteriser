@@ -223,28 +223,31 @@ let SVGbuilder = {
   },
 
   getLayers: function() {
-    let layers = {}
+    let outputLayers = {}
     for (pipeline of config.pipelines) {
-      pipelinelayers = pipeline.getLayers()
+      pipelineLayers = pipeline.getLayers()
       // TODO: Checc this gets the keys right
-      for (layer in pipelinelayers) {
-        if (layers.contains(layer)) {
-          layers[layer] = concat(layers[layer], pipelinelayers[layer])
+      for (layer in pipelineLayers) {
+        if (layer in outputLayers) {
+          outputLayers[layer] = outputLayers[layer].concat(pipelinLayers[layer])
+        } else {
+          outputLayers[layer] = [].concat(pipelineLayers[layer])
         }
       }
     }
 
-    return layers;
+    return outputLayers;
   },
 
   svgText: function (one) {
+    const NS = "http://www.w3.org/2000/svg";
     let layers = this.getLayers();
     // TODO: de-Schlemiel this function
     let s = `<svg xmlns="${NS}" viewBox="0 0 200 200" width="200mm" height="200mm"><rect width="200" height="200" fill="white"/>`; 
     for (const n of (one == "all" ? Object.keys(layers) : [one])) {
       s += `<g stroke="${n}" fill="none" stroke-width="0.4">`; 
       for (const p of layers[n]) {
-        s += `<path d="${pathD(p)}"/>`;
+        s += `<path d="${this.pathD(p)}"/>`;
       }
       s += '</g>';
     }
@@ -275,6 +278,7 @@ class Pipeline {
   }
 
   #assignLayers(g) {
+    // put geometry into layers
     let L = {
     }; 
 
@@ -299,6 +303,7 @@ class Pipeline {
   }
 
   getLayers() {
+    // build the geometry, apply transforms, assign to layers following rules
     return this.#assignLayers(this.#applyTransforms(this.#generateGeometry()))
   }
 
@@ -386,14 +391,14 @@ class Pipeline {
 
   updateSteps() {
     // Update all the setup of the pipeline from the active UI
-    pipelineSteps = this.generators.concat(this.transforms)
+    let pipelineSteps = this.generators.concat(this.transforms)
     // populate with gens and xforms
     for (let set of this.ruleSets) {
       pipelineSteps = pipelineSteps.concat(set.allRules())
     }
 
     for (let step of pipelineSteps) {
-      step.getInputs();
+      step.readInputs();
     }
   }
 
@@ -405,7 +410,7 @@ class PipelineStep {
   constructor() {
     this.id = util.getGid();
   }
-  getInputs() {
+  readInputs() {
     console.log('Superclass getting inputs for ' + this.id)
   }
   renderGenericInputs(elementId) {
@@ -414,22 +419,47 @@ class PipelineStep {
   }
   setValues(v) {
   }
-  getInput(id) {
-    let inputType = document.getElementById(this.elementId + id).type;
-    if (inputType == "number") return +document.getElementById(this.elementId + id).value;
-    if (inputType == "checkbox") return document.getElementById(this.elementId + id).checked;
+  readInput(attrib) {
+    let inputEl = document.getElementById(this.id + '-' + attrib);
+    if (inputEl != null) {
+      let inputType = inputEl.type;
+      if (inputType == "number") return +document.getElementById(this.id + '-' + attrib).value;
+      if (inputType == "checkbox") return document.getElementById(this.id + '-' + attrib).checked;
+    }
   }
 }
 
 class Generator extends PipelineStep {
   shape;
+  attribs = {};
 
   // Call ctor with (Generator.patterns['grid'], Generator.shapes['hexagon']) or whatever
   // Or default ctor and set the fields
-  constructor(shape = Generator.shapes['square'], pattern = Generator.patterns['grid']) {
+  constructor(shape = 'square', pattern = 'grid') {
     super()
-    this.shape = shape;
-    this.pattern = pattern;
+    if (!(shape in Generator.shapes) || !(pattern in Generator.patterns)) {
+      throw new Error('Invalid Generator option');
+    }
+    this.shape = Generator.shapes[shape];
+    this.pattern = Generator.patterns[pattern];
+    
+    // idiot proof init blocks
+    this.attribs.radius = 5; // every shape needs a radius
+    if (pattern == 'grid' || pattern == 'staggeredgrid') {
+      this.attribs.rows = 10;
+      this.attribs.cols = 10;
+      this.attribs.x_spacing = 20;
+      this.attribs.y_spacing = 20;
+      this.attribs.origin_x = 10;
+      this.attribs.origin_y = 10;
+      this.attribs.originXLabel = 'Start at';
+    } else if (pattern == 'circle') {
+      // ...
+      this.attribs.points = 12;
+      this.attribs.origin_x = 100;
+      this.attribs.origin_y = 100;
+      this.attribs.originXLabel = 'Centre';
+    }
   }
   static shapes = {
     'hexagon': function(p) {
@@ -459,39 +489,39 @@ class Generator extends PipelineStep {
                   {x: p.centre.x, y: p.centre.y - p.radius}];
       p.close = false;
     }
-  }
+  }  
 
   static patterns = {
     'staggeredgrid': {
       humanName: 'Hex grid',
       generatePoints: function generatePoints() {
         let g = [];
-        for (let r = 0; r < this.rows; r++){ 
-          for (let col = 0; col < this.cols; col++) {
-            let x = (col + 1) * this.x_spacing + (r % 2 ? this.x_spacing / 2 : 0), y = (r + 1) * this.y_spacing;
+        for (let r = 0; r < this.attribs.rows; r++){ 
+          for (let col = 0; col < this.attribs.cols; col++) {
+            let x = this.attribs.origin_x + col * this.attribs.x_spacing + (r % 2 ? this.attribs.x_spacing / 2 : 0), y = this.attribs.origin_y + row * this.attribs.y_spacing;
             // push a shape with a centre and radius to g
             g.push({
               centre: {
                 x, y
-              }, radius: this.radius, angle: 0, points: []
+              }, radius: this.attribs.radius, angle: 0, points: []
             })
           }
         }
         return g
-      } 
+      }
     }, 
     'grid': {
       humanName: 'Grid',
       generatePoints: function generatePoints() {
         let g = [];
-        for (let r = 0; r < this.rows; r++){ 
-          for (let col = 0; col < this.cols; col++) {
-            let x = (col + 1) * this.x_spacing, y = (r + 1) * this.y_spacing;
+        for (let row = 0; row < this.attribs.rows; row++){ 
+          for (let col = 0; col < this.attribs.cols; col++) {
+            let x = this.attribs.origin_x + col * this.attribs.x_spacing, y = this.attribs.origin_y + row * this.attribs.y_spacing;
             // push a shape with a centre and radius to g
             g.push({
               centre: {
                 x, y
-              }, radius: this.radius, angle: 0, points: []
+              }, radius: this.attribs.radius, angle: 0, points: []
             })
           }
         }
@@ -499,6 +529,18 @@ class Generator extends PipelineStep {
       }
     }
   }
+
+  renderMap = {
+    'rows' : function() {return `<label>Rows<input id=${this.id + '-rows'} type="number" value=${this.attribs.rows} /></label>`},
+    'cols' : function() {return `<label>Cols<input id=${this.id + '-cols'} type="number" value=${this.attribs.cols} /></label>`},
+    'radius' : function() {return `<label>Size<input id=${this.id + '-radius'} type="number" value=${this.attribs.radius} /></label>`},
+    'x_spacing' : function() {return `<label>X gap<input id=${this.id + '-x_spacing'} type="number" value=${this.attribs.x_spacing} /></label>`},
+    'y_spacing' : function() {return `<label>Y gap<input id=${this.id + '-y_spacing'} type="number" value=${this.attribs.y_spacing} /></label>`},
+    'origin_x' : function() {return `<label>${this.attribs.originXLabel}<input id=${this.id + '-origin_x'} type="number" value=${this.attribs.origin_x} />`},
+    'origin_y' : function() {return `, <input id=${this.id + '-origin_y'} type="number" value=${this.attribs.origin_y}></label>`},
+  }
+
+      
 
   generateGeometry() {
     let g = this.generatePoints()
@@ -512,7 +554,21 @@ class Generator extends PipelineStep {
   }
 
   renderInputs() {
-    return `Generator`
+    let ui = ''
+    for (let attribute in this.attribs) {
+      if (typeof this.renderMap[attribute] !== 'undefined') {
+        ui = ui + this.renderMap[attribute].call(this)
+      }
+    }
+
+    return ui;
+  }
+
+  readInputs() {
+    for (let attribute in this.attribs) {
+      // readInput takes the input name, constructs the DOM id ("42-rows") and reads the value according to HTML input type
+      this.attribs[attribute] = this.readInput(attribute)
+    }
   }
 }
 
