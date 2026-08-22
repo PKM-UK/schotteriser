@@ -433,7 +433,7 @@ class PipelineStep {
 }
 
 class Generator extends PipelineStep {
-  shape;
+  shape; // TODO: Ever used?
   attribs = {};
 
   // Call ctor with (Generator.patterns['grid'], Generator.shapes['hexagon']) or whatever
@@ -445,7 +445,8 @@ class Generator extends PipelineStep {
     }
     this.attribs.shape = shape;
     this.shapefn = Generator.shapes[shape];
-    this.generatePoints = Generator.patterns[pattern].generatePoints;
+    this.pattern = pattern;
+    this.generatePoints = Generator.patterns[this.pattern].generatePoints; // this binding
     
     // idiot proof init blocks
     this.attribs.radius = 5; // every shape needs a radius
@@ -564,7 +565,7 @@ class Generator extends PipelineStep {
       
 
   generateGeometry() {
-    let g = this.generatePoints()
+    let g = this.generatePoints(); // this binding
     for (const p of g) {
       // for each shape in the geometry,
       // populate a list of points
@@ -575,7 +576,7 @@ class Generator extends PipelineStep {
   }
 
   renderInputs() {
-    let ui = ''
+    let ui = '<label>' + Generator.patterns[this.pattern].humanName + '</label>';
     for (let attribute in this.attribs) {
       if (typeof this.renderMap[attribute] !== 'undefined') {
         ui = ui + this.renderMap[attribute].call(this)
@@ -605,6 +606,129 @@ class Generator extends PipelineStep {
     this.attribs[attribute] = newval;
   }
 }
+
+
+// ValueField: return nuber based on coordinate and min/max value
+// Transform: do a modify based on the value from a ValueField
+// Rule: include or exclude shape based on whether the value from a ValueField falls within a limit
+// TODO: add clipping bounds for Transforms (ie if the ValueField value is below 0, treat it as 0)
+
+class ValueField {
+  static #valueFields = {
+    'X': function value(attribs, point) {
+      return attribs.min + ((attribs.max - attribs.min) * point.x / config.doc.w)
+    },
+    'Y': function value(attribs, point) {
+      return attribs.min + ((attribs.max - attribs.min) * point.y / config.doc.h)
+    },
+    'radius': function value(attribs, point) {
+      let r = Math.hypot(p.centre.x - attribs.centre_x, p.centre.y - attribs.centre_y);
+      return Math.min(Math.max(attribs.min + ((attribs.max - attribs.min) * r / attribs.radius), attribs.min), attribs.max)
+    },
+    'angle': function value(attribs, point) {
+      return Math.atan((p.centre.y - attribs.centre_y) / (p.centre.x - attribs.centre_x))
+    }
+  }
+
+  static getFieldTypes() {
+    return ValueField.#valueFields.keys()
+  }
+
+  static fieldfn(type) {
+    return ValueField.#valueFields[type]
+  }
+}
+
+// TRANSFORMS
+class Transform extends PipelineStep {
+  attribs = {};
+
+  constructor(field, modify) {
+    super()
+    this.attribs.fieldType = field;
+    this.attribs.modifyType = modify;
+  }
+
+  static #modifiers = {
+    'scale': {
+      humanName: "Scale",
+      modify: function (shape, scalar) {
+        // scale shape's points based on scalar
+        for (let p of shape.points) {
+          let dx = shape.centre.x - p.x
+          dx = dx * scalar
+          p.x = shape.centre.x - dx
+
+          let dy = shape.centre.y - p.y
+          dy = dy * scalar
+          p.y = shape.centre.y - dy
+        }
+      }
+      
+    },
+    'rotateinplace': {
+      humanName:"Rotate in place",
+      modify: function (shape, angle) {
+        const angleRadians = angle * 0.0174533 // Math.PI / 180
+        const centre = shape.centre;
+
+        for (let point of shape.points) {  
+          const dx = point.x - centre.x;
+          const dy = point.y - centre.y;
+
+          const cos = Math.cos(angleRadians);
+          const sin = Math.sin(angleRadians);
+          
+          point.x = centre.x + dx * cos - dy * sin;
+          point.y = centre.y + dx * sin + dy * cos
+        }
+      }   
+    },
+    'translatex': {
+      humanName:"Move X",
+      modify: function(shape, d) {
+        // Move centre so subsequent rotates do rotate in place
+        shape.centre.x = shape.centre.x + d
+        for (let point of shape.points) {  
+          point.x = point.x + d
+        }        
+      }
+    },    
+    'translatey': {
+      humanName:"Move Y",
+      modify: function (shape, d) {
+        shape.centre.y = shape.centre.y + d
+        for (let point of shape.points) {
+          point.y = point.y + d
+        }        
+      }      
+    },
+  }
+
+  static getModifierTypes() {
+    return Transform.#modifiers.keys()
+  }
+
+  value(point) {
+    return ValueField.fieldfn(this.attribs.fieldType)(this.attribs, point)
+  }  
+
+  apply(g) {
+    for (let p of g) {
+      Transform.#modifiers[this.attribs.modifyType].modify(p, this.value(p.centre))
+    }
+  }
+
+  renderInputs() {
+    return 'Transform! :)'
+  }
+
+  getInputs() {
+    // this.transformModify.getInputs(); // enable this if modifys ever get inputs
+    this.transformField.getInputs();
+  }
+}
+
 
 const RuleSet = class extends PipelineStep{
   id;
@@ -644,6 +768,12 @@ const RuleSet = class extends PipelineStep{
 let pipe = new Pipeline;
 let sqsqgen = new Generator('grid', 'hexagon');
 pipe.generators.push(sqsqgen)
+
+let xscale = new Transform('X', 'scale')
+xscale.attribs.min = 0.5
+xscale.attribs.max = 1.5
+pipe.transforms.push(xscale)
+
 let defaultSet = new RuleSet();
 defaultSet.colour = 'black'
 pipe.ruleSets.push(defaultSet)
