@@ -184,7 +184,8 @@ function refresh() {
 function recalculate() {
   // rules changed on UI: update steps from UI and redraw SVG
   updateSteps()
-  redrawSVG()
+  // redrawSVG()
+  refresh()
 }
 
 function updateSteps() {
@@ -218,7 +219,7 @@ function newGenerator() {
 
 function newTransform() {
   let type = document.getElementById('new-xform-type').value;
-  let newTrans = new Transform()
+  let newTrans = new Transform('X', type)
   config.activePipeline.transforms.push(newTrans)
   refresh(); 
 }
@@ -380,16 +381,18 @@ class Pipeline {
     }
     ui = ui + '</select></div>'
 
-    /*
+    
     ui = ui + '<div id="transforms-ui" class="step-group">'
     for (let xform of this.transforms) {
-      ui = ui + '<div class="step-container" id="' + gen.elementId + '-container">' + xform.renderInputs() + '</div>'
+      ui = ui + '<div class="step-container" id="' + xform.elementId + '-container">' + xform.renderInputs() + '</div>'
     }
-    ui = ui + '<button onclick="newXform()">New </button><select id="new-xform-type">'
-    for (let mt in TransformModifiers) {
-      ui = ui + `<option value=${mt}>${TransformModifiers[mt].humanName}</option>`
+    
+    ui = ui + '<button onclick="newTransform()">New </button><select id="new-xform-type">'
+    for (let mt of Transform.getModifierTypes()) {
+      ui = ui + `<option value=${mt}>${mt}</option>`
     }
     ui = ui + '</select></div>'
+    /*
 
     ui = ui + '<div id="rules-ui" class="step-group">'
     for (let rs of this.ruleSets) {
@@ -449,6 +452,8 @@ class PipelineStep {
         if (isNaN(parseFloat(valstring))) { return valstring} else {return parseFloat(valstring)}
       }
       if (inputType == 'checkbox') return document.getElementById(this.id + '-' + attrib).checked;
+    } else {
+      return null;
     }
   }
 }
@@ -652,7 +657,7 @@ class ValueField {
   }
 
   static getFieldTypes() {
-    return ValueField.#valueFields.keys()
+    return Object.keys(ValueField.#valueFields)
   }
 
   static fieldfn(type) {
@@ -668,6 +673,17 @@ class Transform extends PipelineStep {
     super()
     this.attribs.fieldType = field;
     this.attribs.modifyType = modify;
+
+    if (modify == 'rotateinplace') {
+      this.attribs.min = 0;
+      this.attribs.max = 90;
+    } else if (modify == 'scale') {
+      this.attribs.min = 1;
+      this.attribs.max = 2;
+    } else {
+      this.attribs.min = 0;
+      this.attribs.max = 10;      
+    }
   }
 
   static #modifiers = {
@@ -727,7 +743,7 @@ class Transform extends PipelineStep {
   }
 
   static getModifierTypes() {
-    return Transform.#modifiers.keys()
+    return Object.keys(Transform.#modifiers)
   }
 
   value(point) {
@@ -740,13 +756,63 @@ class Transform extends PipelineStep {
     }
   }
 
-  renderInputs() {
-    return 'Transform! :)'
+  renderMap = {
+    'fieldType' : function() {
+      let ui = `<select id=${this.id + "-fieldType"}>`;
+      for (let field of ValueField.getFieldTypes()) {
+        ui = ui + `<option value=${field} ${field == this.attribs.fieldType ? ' selected' : ''}>${field}</option>`
+      }
+      ui = ui + '</select>'
+      return ui;
+    },
+    'centre_x': function() {return ['radius', 'angle'].includes(this.attribs.fieldType) ? `<label>about <input id=${this.id + '-centre_x'} type="number" value=${this.attribs.centre_x} />` : ''},  
+    'centre_y': function() {return ['radius', 'angle'].includes(this.attribs.fieldType) ? `, <input id=${this.id + '-centre_y'} type="number" value=${this.attribs.centre_y} />` : ''},  
+    'min' : function() {return `<label>From<input id=${this.id + '-min'} type="number" value=${this.attribs.min} /></label>`},  
+    'max' : function() {return `<label>To <input id=${this.id + '-max'} type="number" value=${this.attribs.max} /></label>`}, 
   }
 
-  getInputs() {
-    // this.transformModify.getInputs(); // enable this if modifys ever get inputs
-    this.transformField.getInputs();
+  renderInputs() {
+    let ui = Transform.#modifiers[this.attribs.modifyType].humanName + ' using ';
+
+    for (let attribute in this.attribs) {
+      if (typeof this.renderMap[attribute] !== 'undefined') {
+        ui = ui + this.renderMap[attribute].call(this)
+      }
+    }
+
+    return ui
+  }
+
+  readInputs() {
+    for (let attribute in this.attribs) {
+      // readInput takes the input name, constructs the DOM id ("42-rows") and reads the value according to HTML input type
+      let newval = this.readInput(attribute);
+      if (newval != null && newval != this.attribs[attribute]) {
+        this.attributeChange(attribute, newval)
+      }
+    }
+  }
+
+  attributeChange(attribute, newval) {
+    // Special cases
+    if (attribute == 'fieldType') {
+      if (['radius', 'angle'].includes(newval)) {
+        if (typeof this.attribs.centre_x == 'undefined') {
+          this.attribs.centre_x = 100
+        }
+        if (typeof this.attribs.centre_y == 'undefined') {
+          this.attribs.centre_y = 100
+        }
+      }
+      if (newval == 'radius') {
+        if (typeof this.attribs.radius == 'undefined') {
+          this.attribs.radius = 50
+        }
+      }
+    }
+
+    // Generic change attribute value
+    this.attribs[attribute] = newval;
   }
 }
 
@@ -790,7 +856,7 @@ let pipe = new Pipeline;
 let sqsqgen = new Generator('grid', 'hexagon');
 pipe.generators.push(sqsqgen)
 
-let xscale = new Transform('angle', 'scale')
+let xscale = new Transform('X', 'scale')
 xscale.attribs.min = 0
 xscale.attribs.max = 2
 xscale.attribs.centre_x = 100
