@@ -132,6 +132,27 @@ const util = {
     return sfc32(hashseed[0], hashseed[1], hashseed[2], hashseed[3]);
   },
 
+  clamp: function(a, b, x) {
+    let min = Math.min(a, b)
+    let max = Math.max(a, b)
+
+    return Math.min(max, Math.max(min, x))
+  },
+
+  clockDegrees: function(x, y) {
+    let ex, ey, shift;
+    if (x < 0 && y < 0) {
+      ex = 0-x;
+      ey = 0-y;
+      shift = 180;
+    }
+    return Math.atan(ex, ey) // bollox
+  },
+  angleFromTop: function (x, y) {
+    const angle = Math.atan2(x, -y) * 180 / Math.PI;
+    return (angle + 360) % 360;
+  },
+
   download: function (which) {
     let a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([svgText(SVGbuilder.current, which)], {
@@ -139,7 +160,7 @@ const util = {
     }));
     a.download = which + '.svg';
     a.click();
-  }  
+  },
 }
 
 let config = {
@@ -622,11 +643,11 @@ class ValueField {
       return attribs.min + ((attribs.max - attribs.min) * point.y / config.doc.h)
     },
     'radius': function value(attribs, point) {
-      let r = Math.hypot(p.centre.x - attribs.centre_x, p.centre.y - attribs.centre_y);
-      return Math.min(Math.max(attribs.min + ((attribs.max - attribs.min) * r / attribs.radius), attribs.min), attribs.max)
+      let r = Math.hypot(point.x - attribs.centre_x, point.y - attribs.centre_y);
+      return util.clamp(attribs.min, attribs.max, r / attribs.radius )
     },
     'angle': function value(attribs, point) {
-      return Math.atan((p.centre.y - attribs.centre_y) / (p.centre.x - attribs.centre_x))
+      return attribs.min + (attribs.max - attribs.min) * ((util.angleFromTop(point.x - attribs.centre_x, point.y - attribs.centre_y) / 360))
     }
   }
 
@@ -769,9 +790,12 @@ let pipe = new Pipeline;
 let sqsqgen = new Generator('grid', 'hexagon');
 pipe.generators.push(sqsqgen)
 
-let xscale = new Transform('X', 'scale')
-xscale.attribs.min = 0.5
-xscale.attribs.max = 1.5
+let xscale = new Transform('angle', 'scale')
+xscale.attribs.min = 0
+xscale.attribs.max = 2
+xscale.attribs.centre_x = 100
+xscale.attribs.centre_y = 100
+xscale.attribs.radius = 50
 pipe.transforms.push(xscale)
 
 let defaultSet = new RuleSet();
