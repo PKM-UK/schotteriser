@@ -125,11 +125,11 @@ const util = {
     return (t >>> 0) / 4294967296;
   },
 
-  seededRand: function (c, salt) {
+  seededRand: function (salt) {
     // Use seeded
     // const seedgen = () => ((c.randomSeed + salt)*2**32)>>>0;
-    const hashseed = cyrb128(c.randomSeed + salt)
-    return sfc32(hashseed[0], hashseed[1], hashseed[2], hashseed[3]);
+    const hashseed = this.cyrb128(config.randomSeed + salt) //  should have one seed per pipeline
+    return this.sfc32(hashseed[0], hashseed[1], hashseed[2], hashseed[3]);
   },
 
   clamp: function(a, b, x) {
@@ -207,7 +207,12 @@ function redrawSVG() {
 
 // Button handlers
 function removeStepGlobal(id) {
-  // iterate over pipelines until one returns true for removeStep
+  for (let pipeline of config.pipelines) {
+    if (pipeline.removeStep(id)) {
+      refresh();
+      break;
+    }
+  }
 }
 
 function newGenerator() {
@@ -336,16 +341,16 @@ class Pipeline {
     let removed = false;
 
     // Remove from config
-    for (g in this.generators) {
-      if (this.generators[g].elementId == elementId) {
+    for (let g in this.generators) {
+      if (this.generators[g].id == elementId) {
         this.generators.splice(g, 1);
         removed = true;
         break;
       }
     }
     if (!removed) {
-      for (g in this.transforms) {
-        if (this.transforms[g].elementId == elementId) {
+      for (let g in this.transforms) {
+        if (this.transforms[g].id == elementId) {
           this.transforms.splice(g, 1);
           removed = true;
           break;
@@ -353,9 +358,9 @@ class Pipeline {
       }
     }
     if (!removed) {
-      for (s in this.ruleSets) {
-        for (g in this.ruleSets[s].ruleGroups) {
-          if (g.elementId == elementId) {
+      for (let s in this.ruleSets) {
+        for (let g in this.ruleSets[s].ruleGroups) {
+          if (g.id == elementId) {
             this.ruleSets[s].ruleGroups.splice(g, 1);
             removed = true;
             break;
@@ -438,7 +443,7 @@ class PipelineStep {
     console.log('Superclass getting inputs for ' + this.id)
   }
   renderGenericInputs(elementId) {
-    const clickHandler = "removeStep('" + elementId + "')"
+    const clickHandler = "removeStepGlobal('" + this.id + "')"
     return '<button style="float: right;" onclick="' + clickHandler + '">X</button>';
   }
   setValues(v) {
@@ -602,7 +607,7 @@ class Generator extends PipelineStep {
   }
 
   renderInputs() {
-    let ui = '<label>' + Generator.patterns[this.pattern].humanName + '</label>';
+    let ui = this.renderGenericInputs() + '<label>' + Generator.patterns[this.pattern].humanName + '</label>';
     for (let attribute in this.attribs) {
       if (typeof this.renderMap[attribute] !== 'undefined') {
         ui = ui + this.renderMap[attribute].call(this)
@@ -616,7 +621,7 @@ class Generator extends PipelineStep {
     for (let attribute in this.attribs) {
       // readInput takes the input name, constructs the DOM id ("42-rows") and reads the value according to HTML input type
       let newval = this.readInput(attribute);
-      if (newval != this.attribs[attribute]) {
+      if (newval != null && newval != this.attribs[attribute]) {
         this.attributeChange(attribute, newval)
       }
     }
@@ -674,16 +679,11 @@ class Transform extends PipelineStep {
     this.attribs.fieldType = field;
     this.attribs.modifyType = modify;
 
-    if (modify == 'rotateinplace') {
-      this.attribs.min = 0;
-      this.attribs.max = 90;
-    } else if (modify == 'scale') {
-      this.attribs.min = 1;
-      this.attribs.max = 2;
-    } else {
-      this.attribs.min = 0;
-      this.attribs.max = 10;      
-    }
+    this.attribs.rnd = false;
+    this.attribs.rndsign = false;
+    this.attribs.steps = 0;
+
+    this.attributeChange('modifyType', modify); // should do this more consistently
   }
 
   static #modifiers = {
@@ -746,8 +746,39 @@ class Transform extends PipelineStep {
     return Object.keys(Transform.#modifiers)
   }
 
+  randomise(value, point) {
+    if (this.attribs.rnd == false) return value;
+
+    // Seed the PRNG with the config random seed and the point's position
+    let p = util.seededRand(point.x + ", " + point.y)
+
+    if (this.attribs.rndsign) {
+      if (util.seededRand(point.x + " - " + point.y) < 0.5) {
+        p = 0-p;
+      }
+    }
+
+    // lerp between baseValue and value based on rnd[0,1)
+    return ((value * p) + (this.attribs.baseValue * (1-p)))
+  }
+
+  // Put value into one of n equally likely buckets between min and max inclusive
+  discretise(value) {
+    if (this.attribs.steps == 0) return value;
+    if (this.attribs.max == this.attribs.min) return this.attribs.min; // guard against /0
+    // Lets pretend min = 5, max = 10 and steps = 3, p = 7
+    let p = (value - this.attribs.min) / (this.attribs.max - this.attribs.min) // Normalise to 0 to 1 - gives us 0.4
+    p = p * this.attribs.steps                                 // Normalise to 0 to steps - gives us 1.2
+    p = Math.floor(p)                                  // Round down 0, 1, ... (steps - 1) - gives us 1
+    p = p / (this.attribs.steps - 1)                           // Normalise back to [0,1) - gives us 0.5 as we're on middle step
+    p = p * (this.attribs.max - this.attribs.min)                      // Normalise back to range extent - gives us 2.5
+    p = p + this.attribs.min                                   // Move back up to actual range min-max - gives us 7.5
+
+    return p;
+  }  
+
   value(point) {
-    return ValueField.fieldfn(this.attribs.fieldType)(this.attribs, point)
+    return this.discretise(this.randomise(ValueField.fieldfn(this.attribs.fieldType)(this.attribs, point), point))
   }  
 
   apply(g) {
@@ -769,16 +800,25 @@ class Transform extends PipelineStep {
     'centre_y': function() {return ['radius', 'angle'].includes(this.attribs.fieldType) ? `, <input id=${this.id + '-centre_y'} type="number" value=${this.attribs.centre_y} />` : ''},  
     'min' : function() {return `<label>From<input id=${this.id + '-min'} type="number" value=${this.attribs.min} /></label>`},  
     'max' : function() {return `<label>To <input id=${this.id + '-max'} type="number" value=${this.attribs.max} /></label>`}, 
+    'rnd': function(){return ''}, // done separately
+    'rndsign': function(){return ''}, // done separately
+    'steps': function(){return ''}, // done separately
+
   }
 
   renderInputs() {
-    let ui = Transform.#modifiers[this.attribs.modifyType].humanName + ' using ';
+    let ui = this.renderGenericInputs() + Transform.#modifiers[this.attribs.modifyType].humanName + ' using ';
 
     for (let attribute in this.attribs) {
       if (typeof this.renderMap[attribute] !== 'undefined') {
         ui = ui + this.renderMap[attribute].call(this)
       }
     }
+
+    // check boxen for randon/bidirectional/steps
+    ui = ui + `<label>🎲 <input id='${this.id}-rnd' type='checkbox' ${this.attribs.rnd ? ' checked' : ''}/> 
+                    ↔ <input id='${this.id}-rndsign' type='checkbox' ${this.attribs.rndsign ? ' checked' : ''}/>
+                    📊 <input id='${this.id}-steps' type=number value=${this.attribs.steps}>`
 
     return ui
   }
@@ -808,6 +848,21 @@ class Transform extends PipelineStep {
         if (typeof this.attribs.radius == 'undefined') {
           this.attribs.radius = 50
         }
+      }
+    }
+    if (attribute == 'modifyType') {
+      if (newval == 'rotateinplace') {
+        this.attribs.min = 0;
+        this.attribs.max = 90;
+        this.attribs.baseValue = 0;
+      } else if (newval == 'scale') {
+        this.attribs.min = 1;
+        this.attribs.max = 2;
+        this.attribs.baseValue = 1;
+      } else {
+        this.attribs.min = 0;
+        this.attribs.max = 10;
+        this.attribs.baseValue = 0; 
       }
     }
 
