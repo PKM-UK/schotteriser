@@ -51,8 +51,18 @@ config object setup
       margin-bottom: 1em;
     }
 
+    .colour-block {
+      width: 2em;
+      height: 2em;
+    }
+
     .step-group input {
       width: 2em;
+    }
+
+    .step-group p {
+      margin-top: 3px;
+      margin-bottom: 3px;
     }
 
     .step-container {
@@ -359,8 +369,17 @@ class Pipeline {
     }
     if (!removed) {
       for (let s in this.ruleSets) {
+        if (this.ruleSets[s].id == elementId) {
+          this.ruleSets.splice(s, 1)
+          removed = true;
+          break;
+        }
+      }
+    }
+    if (!removed) {
+      for (let s in this.ruleSets) {
         for (let g in this.ruleSets[s].ruleGroups) {
-          if (g.id == elementId) {
+          if (this.ruleSets[s].ruleGroups[g].id == elementId) {
             this.ruleSets[s].ruleGroups.splice(g, 1);
             removed = true;
             break;
@@ -368,6 +387,19 @@ class Pipeline {
         }
       }
     }
+    if (!removed) {
+      for (let s in this.ruleSets) {
+        for (let g in this.ruleSets[s].ruleGroups) {
+          for (let r in this.ruleSets[s].ruleGroups[g].rules) {
+            if (this.ruleSets[s].ruleGroups[g].rules[r].id == elementId) {
+              this.ruleSets[s].ruleGroups[g].rules.splice(r, 1);
+              removed = true;
+              break;
+            }
+          }
+        }
+      }
+    }    
 
     return removed;
   }
@@ -397,22 +429,36 @@ class Pipeline {
       ui = ui + `<option value=${mt}>${mt}</option>`
     }
     ui = ui + '</select></div>'
-    /*
+    
 
     ui = ui + '<div id="rules-ui" class="step-group">'
+      
+    
     for (let rs of this.ruleSets) {
-      ui = ui + '<div class="rule-set">'
+      ui = ui + '<div class="rule-set"><p>Set'
+      ui = ui + '<button style="float: right;" onclick="removeStepGlobal(\'' + rs.id + '\')">X</button></p>'
       for (let rg of rs.ruleGroups) {
-        ui = ui + '<div class="rule-group">'
+        if (rg.rules.length > 1) {
+          ui = ui + '<div class="rule-group"><p>Group'
+          ui = ui + '<button style="float: right;" onclick="removeStepGlobal(\'' + rg.id + '\')">X</button></p>'
+        }
         for (let r of rg.rules) {
           // TODO: generic X remove button here
           ui = ui + '<div class="rule-element">' + r.renderInputs() + '</div>'
         }
         ui = ui + '</div>'
       }
-      ui = ui + rs.colour + '</div>'
+
+      // colour picker
+      ui = ui + `<select id="${rs.id}-colour" style="background-color: ${rs.colour}">`
+      for (let col of ['black', 'red', 'green', 'blue', 'purple']) {
+        ui = ui + `<option style="background-color: ${col}" >.</option>`; // ${rs.colour == col ? 'selected' : ''}
+      }
+      ui = ui + '</select>'
+
+      // ui = ui + '<div class="colour-block" style="background-color: ' + rs.colour + '"></div>'
     }
-      */
+      
     ui = ui + '</div>'
 
     return ui;
@@ -424,6 +470,7 @@ class Pipeline {
     // populate with gens and xforms
     for (let set of this.ruleSets) {
       pipelineSteps = pipelineSteps.concat(set.allRules())
+      pipelineSteps.push(set)
     }
 
     for (let step of pipelineSteps) {
@@ -647,17 +694,18 @@ class Generator extends PipelineStep {
 class ValueField {
   static #valueFields = {
     'X': function value(attribs, point) {
-      return attribs.min + ((attribs.max - attribs.min) * point.x / config.doc.w)
+      return attribs.rule ? point.x : attribs.min + ((attribs.max - attribs.min) * point.x / config.doc.w)
     },
     'Y': function value(attribs, point) {
-      return attribs.min + ((attribs.max - attribs.min) * point.y / config.doc.h)
+      return attribs.rule ? point.y : attribs.min + ((attribs.max - attribs.min) * point.y / config.doc.h)
     },
     'radius': function value(attribs, point) {
       let r = Math.hypot(point.x - attribs.centre_x, point.y - attribs.centre_y);
-      return util.clamp(attribs.min, attribs.max, r / attribs.radius )
+      return attribs.rule ? r : util.clamp(attribs.min, attribs.max, r / attribs.radius )
     },
     'angle': function value(attribs, point) {
-      return attribs.min + (attribs.max - attribs.min) * ((util.angleFromTop(point.x - attribs.centre_x, point.y - attribs.centre_y) / 360))
+      let angle_degrees = util.angleFromTop(point.x - attribs.centre_x, point.y - attribs.centre_y);
+      return attribs.rule ? angle_degrees : attribs.min + (attribs.max - attribs.min) * ((angle_degrees / 360))
     }
   }
 
@@ -872,11 +920,12 @@ class Transform extends PipelineStep {
 }
 
 
-const RuleSet = class extends PipelineStep{
-  id;
+const RuleSet = class extends PipelineStep {
   colour;
   ruleGroups = [];
-  constructor() { super() }
+  constructor() {
+    super();
+  }
   
   addGroup(g) {
     this.ruleGroups.push(g);
@@ -905,7 +954,110 @@ const RuleSet = class extends PipelineStep{
     }
     return op
   }
+
+  readInputs() {
+    // Pretty simple
+    this.colour = this.readInput('colour')
+  }
 }
+
+const RuleGroup = class extends PipelineStep {
+  rules = []
+
+  constructor() { super() }
+
+  addRule(rule) {
+    this.rules.push(rule)
+  }
+
+  // return true if p satisfies ALL rules
+  classify(p) {
+    for (const rule of this.rules) {
+      if (!rule.classify(p)) {
+        return false;
+      }
+    }
+    return true;
+  }
+}
+
+class Rule extends PipelineStep {
+  attribs = {rule: true, fieldType:'', operator: '', bound: 0};
+  constructor(fieldType = 'Y', operator = 'gt', bound = 100) {
+    super()
+    this.attributeChange('fieldType', fieldType);
+    this.attributeChange('operator', operator);
+    this.attributeChange('bound', bound);
+  }
+
+  classify(shape) {
+    // TODO: this is wrong, I want the position as a scalar
+    // Need "one to one" fields ie mapping X from 0 to doc.width, etc.
+    let pv = ValueField.fieldfn(this.attribs.fieldType)(this.attribs, shape.centre)
+    return (this.attribs.operator == 'gt' ? pv > this.attribs.bound : pv < this.attribs.bound)
+  }
+
+  attributeChange(attribute, newval) {
+    // Special cases
+    if (attribute == 'fieldType') {
+      if (['radius', 'angle'].includes(newval)) {
+        if (typeof this.attribs.centre_x == 'undefined') {
+          this.attribs.centre_x = 100
+        }
+        if (typeof this.attribs.centre_y == 'undefined') {
+          this.attribs.centre_y = 100
+        }
+      }
+    }
+
+    // Generic change attribute value
+    this.attribs[attribute] = newval;
+  }
+
+  renderMap = {
+    'fieldType' : function() {
+      let ui = `<select id=${this.id + "-fieldType"}>`;
+      for (let field of ValueField.getFieldTypes()) {
+        ui = ui + `<option value=${field} ${field == this.attribs.fieldType ? ' selected' : ''}>${field}</option>`
+      }
+      ui = ui + '</select>'
+      return ui;
+    },    
+    'operator' : function() {
+      let ui = `<select id=${this.id + "-operator"}>`;
+      ui = ui + `<option value='gt' ${'gt' == this.attribs.operator ? ' selected' : ''}> &gt; </option>`
+      ui = ui + `<option value='lt' ${'lt' == this.attribs.operator ? ' selected' : ''}> &lt; </option>`
+      ui = ui + '</select>'
+
+      return ui;
+    },
+    'bound': function() {return `<input id='${this.id}-bound' type='number' value=${this.attribs.bound} />`},
+    'centre_x': function() {return ['radius', 'angle'].includes(this.attribs.fieldType) ? `<label>about <input id=${this.id + '-centre_x'} type="number" value=${this.attribs.centre_x} />` : ''},  
+    'centre_y': function() {return ['radius', 'angle'].includes(this.attribs.fieldType) ? `, <input id=${this.id + '-centre_y'} type="number" value=${this.attribs.centre_y} />` : ''},      
+  }
+
+  renderInputs() {
+    let ui = this.renderGenericInputs(this.elementId);
+
+    for (let attribute in this.attribs) {
+      if (typeof this.renderMap[attribute] !== 'undefined') {
+        ui = ui + this.renderMap[attribute].call(this)
+      }
+    }
+
+    return ui;
+  }
+  readInputs() {
+    for (let attribute in this.attribs) {
+      // readInput takes the input name, constructs the DOM id ("42-rows") and reads the value according to HTML input type
+      let newval = this.readInput(attribute);
+      if (newval != null && newval != this.attribs[attribute]) {
+        this.attributeChange(attribute, newval)
+      }
+    }
+  }
+}
+
 
 let pipe = new Pipeline;
 let sqsqgen = new Generator('grid', 'hexagon');
@@ -921,6 +1073,15 @@ pipe.transforms.push(xscale)
 
 let defaultSet = new RuleSet();
 defaultSet.colour = 'black'
+
+let marginrule = new Rule('X', 'lt', 50)
+let margingroup = new RuleGroup()
+margingroup.addRule(marginrule)
+let marginset = new RuleSet();
+marginset.colour = 'red'
+marginset.addGroup(margingroup)
+
+pipe.ruleSets.push(marginset)
 pipe.ruleSets.push(defaultSet)
 config.pipelines.push(pipe)
 config.activePipeline = config.pipelines[0]
