@@ -435,26 +435,29 @@ class Pipeline {
       
     
     for (let rs of this.ruleSets) {
-      ui = ui + '<div class="rule-set"><p>Set'
-      ui = ui + '<button style="float: right;" onclick="removeStepGlobal(\'' + rs.id + '\')">X</button></p>'
+      ui = ui + '<div class="rule-set"><p>'
+      if (rs.ruleGroups.length > 1) {
+        ui = ui + '<p>Set<button style="float: right;" onclick="removeStepGlobal(\'' + rs.id + '\')">X</button></p>'
+      }
       for (let rg of rs.ruleGroups) {
+        ui = ui + '<div class="rule-group">'
         if (rg.rules.length > 1) {
-          ui = ui + '<div class="rule-group"><p>Group'
+          ui = ui + '<p>Group'
           ui = ui + '<button style="float: right;" onclick="removeStepGlobal(\'' + rg.id + '\')">X</button></p>'
         }
         for (let r of rg.rules) {
           // TODO: generic X remove button here
-          ui = ui + '<div class="rule-element">' + r.renderInputs() + '</div>'
+          ui = ui + '<div class="rule-element">' + r.renderInputs() + '</div ending="rule">'
         }
-        ui = ui + '</div>'
+        ui = ui + '</div ending="group">'
       }
 
       // colour picker
       ui = ui + `<select id="${rs.id}-colour" style="background-color: ${rs.colour}">`
       for (let col of ['black', 'red', 'green', 'blue', 'purple']) {
-        ui = ui + `<option style="background-color: ${col}" >.</option>`; // ${rs.colour == col ? 'selected' : ''}
+        ui = ui + `<option style="background-color: ${col}" value="${col}" ${rs.colour == col ? 'selected' : ''}>.</option>`; // ${rs.colour == col ? 'selected' : ''}
       }
-      ui = ui + '</select>'
+      ui = ui + '</select></div>'
 
       // ui = ui + '<div class="colour-block" style="background-color: ' + rs.colour + '"></div>'
     }
@@ -1060,28 +1063,50 @@ class Rule extends PipelineStep {
 
 
 let pipe = new Pipeline;
-let sqsqgen = new Generator('grid', 'hexagon');
-pipe.generators.push(sqsqgen)
+let sqsqgen = new Generator('grid', 'square');
 
-let xscale = new Transform('X', 'scale')
-xscale.attribs.min = 0
-xscale.attribs.max = 2
-xscale.attribs.centre_x = 100
-xscale.attribs.centre_y = 100
-xscale.attribs.radius = 50
-pipe.transforms.push(xscale)
+sqsqgen.attribs.radius = 4
+sqsqgen.attribs.x_spacing = 10
+sqsqgen.attribs.y_spacing = 10
+sqsqgen.attribs.rows = 20
+sqsqgen.attribs.cols = 20
+
+pipe.generators.push(sqsqgen)
 
 let defaultSet = new RuleSet();
 defaultSet.colour = 'black'
 
-let marginrule = new Rule('X', 'lt', 50)
-let margingroup = new RuleGroup()
-margingroup.addRule(marginrule)
-let marginset = new RuleSet();
-marginset.colour = 'red'
-marginset.addGroup(margingroup)
+let smiletoprule = new Rule('Y', 'gt', 125)
+let smilebotrule = new Rule('radius', 'lt', 100)
+smilebotrule.centre_x = 100;
+smilebotrule.centre_y = 100;
 
-pipe.ruleSets.push(marginset)
+let smilegroup = new RuleGroup()
+smilegroup.addRule(smiletoprule)
+smilegroup.addRule(smilebotrule)
+let smileset = new RuleSet();
+smileset.colour = 'red'
+smileset.addGroup(smilegroup)
+
+let leyerule = new Rule('radius', 'lt', 50)
+leyerule.attribs.centre_x = 50;
+leyerule.attribs.centre_y = 50;
+
+let reyerule = new Rule('radius', 'lt', 50)
+reyerule.attribs.centre_x = 150;
+reyerule.attribs.centre_y = 50;
+
+let leyegroup = new RuleGroup()
+leyegroup.addRule(leyerule)
+let reyegroup = new RuleGroup()
+reyegroup.addRule(reyerule)
+let eyeset = new RuleSet()
+eyeset.colour = 'green'
+eyeset.addGroup(leyegroup)
+eyeset.addGroup(reyegroup)
+
+pipe.ruleSets.push(smileset)
+pipe.ruleSets.push(eyeset)
 pipe.ruleSets.push(defaultSet)
 config.pipelines.push(pipe)
 config.activePipeline = config.pipelines[0]
