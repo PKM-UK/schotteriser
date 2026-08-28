@@ -25,7 +25,7 @@ config object setup
     }
 
     #side {
-      width: 260px;
+      width: 300px;
       padding: 12px;
       background: #eee
     }
@@ -33,6 +33,10 @@ config object setup
     #main {
       flex: 1;
       padding: 12px
+    }
+
+    #side {
+      overflow:scroll;
     }
 
     label {
@@ -49,6 +53,8 @@ config object setup
     .rule-set, .rule-group, .step-group {
       border: 1px solid black;
       margin-bottom: 1em;
+      margin-left: 2px;
+      margin-right: 2px;
     }
 
     .colour-block {
@@ -57,7 +63,7 @@ config object setup
     }
 
     .step-group input {
-      width: 2em;
+      width: 3em;
     }
 
     .step-group p {
@@ -87,12 +93,13 @@ config object setup
   <div id="side">
     <h3>Parameters</h3>
     <div id="pipeline-picker">1, 2, 3, 4</div>
-    <div id="steps-ui">
-    </div>
     <div id="buttons-ui">
       <button onclick='recalculate()'>Recalculate</button>
       <button onclick='download("all")'>Preview SVG</button>
     </div>
+    <div id="steps-ui">
+    </div>
+    
   </div>
   <div id="main">
     <div id="view">
@@ -240,15 +247,27 @@ function newTransform() {
 }
 
 function newRuleSet() {
-  ///
+  config.activePipeline.ruleSets.push(new RuleSet());
+  refresh();
 }
 
-function newRuleGroup() {
-  //
+function newRuleGroup(id) {
+  const activeSet = config.activePipeline.ruleSets.find((el) => el.id == id)
+  if (activeSet != null) {
+    activeSet.addGroup(new RuleGroup())
+  }
+  refresh();
 }
 
-function newRule() {
-
+function newRule(sid, gid) {
+  const activeSet = config.activePipeline.ruleSets.find((el) => el.id == sid)
+  if (activeSet != null) {
+    const activeGroup = activeSet.ruleGroups.find((el) => el.id == gid)
+    if (activeGroup != null) {
+      activeGroup.addRule(new Rule())
+    }
+  }
+  refresh();
 }
 
 let SVGbuilder = {
@@ -449,8 +468,11 @@ class Pipeline {
           // TODO: generic X remove button here
           ui = ui + '<div class="rule-element">' + r.renderInputs() + '</div ending="rule">'
         }
-        ui = ui + '</div ending="group">'
+        ui = ui + `<button onclick="newRule(${rs.id}, ${rg.id})">New rule</button>`;
+        ui = ui + '</div ending="group">';
       }
+
+      ui = ui + `<button onclick="newRuleGroup(${rs.id})">New group</button><br />`;
 
       // colour picker
       ui = ui + `<select id="${rs.id}-colour" style="background-color: ${rs.colour}">`
@@ -461,11 +483,15 @@ class Pipeline {
 
       // ui = ui + '<div class="colour-block" style="background-color: ' + rs.colour + '"></div>'
     }
+
+    ui = ui + `<button onclick="newRuleSet()">New set</button><br />`;
       
     ui = ui + '</div>'
 
     return ui;
   }
+
+  
 
   updateSteps() {
     // Update all the setup of the pipeline from the active UI
@@ -1003,13 +1029,16 @@ class Rule extends PipelineStep {
   attributeChange(attribute, newval) {
     // Special cases
     if (attribute == 'fieldType') {
-      if (['radius', 'angle'].includes(newval)) {
+      if ( ['radius', 'angle'].includes(newval) && !( ['radius', 'angle'].includes(this.attribs.fieldType) ) ) {
         if (typeof this.attribs.centre_x == 'undefined') {
           this.attribs.centre_x = 100
         }
         if (typeof this.attribs.centre_y == 'undefined') {
           this.attribs.centre_y = 100
         }
+      } else if ( !(['radius', 'angle'].includes(newval)) && ['radius', 'angle'].includes(this.attribs.fieldType) ) {
+        // TODO: this is dumb it isn't driven by changing the field type dropdown anyway... maybe that one should always autorefresh onchange
+        // config.refreshTimer = window.setTimeout(refresh, 500);
       }
     }
 
