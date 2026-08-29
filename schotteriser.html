@@ -247,7 +247,7 @@ function newTransform() {
 }
 
 function newRuleSet() {
-  config.activePipeline.ruleSets.push(new RuleSet());
+  config.activePipeline.ruleSets.unshift(new RuleSet());
   refresh();
 }
 
@@ -257,6 +257,26 @@ function newRuleGroup(id) {
     activeSet.addGroup(new RuleGroup())
   }
   refresh();
+}
+
+function stepUp(id) {
+  let i = config.activePipeline.ruleSets.findIndex((el) => el.id == id);
+  if (i > 0) {
+    let temp = config.activePipeline.ruleSets[i]
+    config.activePipeline.ruleSets[i] = config.activePipeline.ruleSets[i-1]
+    config.activePipeline.ruleSets[i-1] = temp
+  }
+  recalculate()
+}
+
+function stepDown(id) {
+  let i = config.activePipeline.ruleSets.findIndex((el) => el.id == id);
+  if (i < config.activePipeline.ruleSets.length) {
+    let temp = config.activePipeline.ruleSets[i]
+    config.activePipeline.ruleSets[i] = config.activePipeline.ruleSets[i+1]
+    config.activePipeline.ruleSets[i+1] = temp
+  }
+  recalculate()
 }
 
 function newRule(sid, gid) {
@@ -455,9 +475,18 @@ class Pipeline {
     
     for (let rs of this.ruleSets) {
       ui = ui + '<div class="rule-set"><p>'
-      if (rs.ruleGroups.length > 1) {
-        ui = ui + '<p>Set<button style="float: right;" onclick="removeStepGlobal(\'' + rs.id + '\')">X</button></p>'
+
+      // colour picker
+      ui = ui + `<select id="${rs.id}-colour" style="background-color: ${rs.colour}">`
+      for (let col of ['black', 'red', 'green', 'blue', 'purple']) {
+        ui = ui + `<option style="background-color: ${col}" value="${col}" ${rs.colour == col ? 'selected' : ''}>.</option>`; // ${rs.colour == col ? 'selected' : ''}
       }
+      ui = ui + '</select>'
+      ui = ui + '<button style="float: right;" onclick="removeStepGlobal(\'' + rs.id + '\')">X</button>';
+      ui = ui + '<button style="float: right;" onclick="stepDown(\'' + rs.id + '\')">🔽</button>';
+      ui = ui + '<button style="float: right;" onclick="stepUp(\'' + rs.id + '\')">🔼</button>';
+      ui = ui + '</p>'
+
       for (let rg of rs.ruleGroups) {
         ui = ui + '<div class="rule-group">'
         if (rg.rules.length > 1) {
@@ -474,12 +503,7 @@ class Pipeline {
 
       ui = ui + `<button onclick="newRuleGroup(${rs.id})">New group</button><br />`;
 
-      // colour picker
-      ui = ui + `<select id="${rs.id}-colour" style="background-color: ${rs.colour}">`
-      for (let col of ['black', 'red', 'green', 'blue', 'purple']) {
-        ui = ui + `<option style="background-color: ${col}" value="${col}" ${rs.colour == col ? 'selected' : ''}>.</option>`; // ${rs.colour == col ? 'selected' : ''}
-      }
-      ui = ui + '</select></div>'
+      ui = ui + '</div ending="set">'
 
       // ui = ui + '<div class="colour-block" style="background-color: ' + rs.colour + '"></div>'
     }
@@ -950,7 +974,7 @@ class Transform extends PipelineStep {
 
 
 const RuleSet = class extends PipelineStep {
-  colour;
+  colour = 'black';
   ruleGroups = [];
   constructor() {
     super();
@@ -1036,6 +1060,7 @@ class Rule extends PipelineStep {
         if (typeof this.attribs.centre_y == 'undefined') {
           this.attribs.centre_y = 100
         }
+        // config.refreshTimer = window.setTimeout(refresh, 500);
       } else if ( !(['radius', 'angle'].includes(newval)) && ['radius', 'angle'].includes(this.attribs.fieldType) ) {
         // TODO: this is dumb it isn't driven by changing the field type dropdown anyway... maybe that one should always autorefresh onchange
         // config.refreshTimer = window.setTimeout(refresh, 500);
@@ -1092,6 +1117,10 @@ class Rule extends PipelineStep {
 
 
 let pipe = new Pipeline;
+let defaultSet = new RuleSet();
+defaultSet.colour = 'black'
+
+/*
 let sqsqgen = new Generator('grid', 'square');
 
 sqsqgen.attribs.radius = 4
@@ -1101,9 +1130,6 @@ sqsqgen.attribs.rows = 20
 sqsqgen.attribs.cols = 20
 
 pipe.generators.push(sqsqgen)
-
-let defaultSet = new RuleSet();
-defaultSet.colour = 'black'
 
 let smiletoprule = new Rule('Y', 'gt', 125)
 let smilebotrule = new Rule('radius', 'lt', 100)
@@ -1135,7 +1161,8 @@ eyeset.addGroup(leyegroup)
 eyeset.addGroup(reyegroup)
 
 pipe.ruleSets.push(smileset)
-pipe.ruleSets.push(eyeset)
+pipe.ruleSets.push(eyeset) */
+
 pipe.ruleSets.push(defaultSet)
 config.pipelines.push(pipe)
 config.activePipeline = config.pipelines[0]
