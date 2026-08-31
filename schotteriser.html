@@ -92,7 +92,12 @@ config object setup
 <body>
   <div id="side">
     <h3>Parameters</h3>
-    <div id="pipeline-picker">1, 2, 3, 4</div>
+    <div id="pipeline-picker">
+      <button onclick="setActivePipeline(0)">1</button>
+      <button onclick="setActivePipeline(1)">2</button>
+      <button onclick="setActivePipeline(2)">3</button>
+      <button onclick="setActivePipeline(3)">4</button>
+    </div>
     <div id="buttons-ui">
       <button onclick='recalculate()'>Recalculate</button>
       <button onclick='download("all")'>Preview SVG</button>
@@ -149,6 +154,13 @@ const util = {
     return this.sfc32(hashseed[0], hashseed[1], hashseed[2], hashseed[3]);
   },
 
+  posfloor: function(n) {
+    if (n<0) {
+      return 0-(Math.floor(0-n))
+    } else {
+      return Math.floor(n)
+    }
+  },
   clamp: function(a, b, x) {
     let min = Math.min(a, b)
     let max = Math.max(a, b)
@@ -207,9 +219,9 @@ function recalculate() {
 
 function updateSteps() {
   // get pipelinestep setup from UI
-  for (pipeline of config.pipelines) {
-    pipeline.updateSteps()
-  }
+  // for (pipeline of config.pipelines) {
+    config.activePipeline.updateSteps()
+  // }
 }
 
 function redrawUI() {
@@ -223,6 +235,10 @@ function redrawSVG() {
 }
 
 // Button handlers
+function setActivePipeline(index) {
+  config.activePipeline = config.pipelines[index];
+  refresh();
+}
 function removeStepGlobal(id) {
   for (let pipeline of config.pipelines) {
     if (pipeline.removeStep(id)) {
@@ -305,7 +321,7 @@ let SVGbuilder = {
       // TODO: Checc this gets the keys right
       for (layer in pipelineLayers) {
         if (layer in outputLayers) {
-          outputLayers[layer] = outputLayers[layer].concat(pipelinLayers[layer])
+          outputLayers[layer] = outputLayers[layer].concat(pipelineLayers[layer])
         } else {
           outputLayers[layer] = [].concat(pipelineLayers[layer])
         }
@@ -629,7 +645,13 @@ class Generator extends PipelineStep {
                   {x: p.centre.x - p.radius/2, y: p.centre.y - p.radius / 2},
                   {x: p.centre.x, y: p.centre.y - p.radius}];
       p.close = false;
+    },
+    'line': function(p) {
+      p.points = [{x: p.centre.x, y: p.centre.y + p.radius}, 
+                  {x: p.centre.x, y: p.centre.y - p.radius}];
+                  p.close = false;
     }
+
   }  
 
   static patterns = {
@@ -673,24 +695,24 @@ class Generator extends PipelineStep {
 
   renderMap = {
     'shape' : function() {
-      let ui = `<select id=${this.id + "-shape"}>`;
+      let ui = `<select onchange="recalculate()" id=${this.id + "-shape"}>`;
       for (let shape in Generator.shapes) {
         ui = ui + `<option value=${shape} ${shape == this.attribs.shape ? ' selected' : ''}>${shape}</option>`
       }
       ui = ui + '</select>'
       return ui;
     },
-    'rows' : function() {return `<label>Rows<input id=${this.id + '-rows'} type="number" value=${this.attribs.rows} /></label>`},
-    'cols' : function() {return `<label>Cols<input id=${this.id + '-cols'} type="number" value=${this.attribs.cols} /></label>`},
-    'radius' : function() {return `<label>Size<input id=${this.id + '-radius'} type="number" value=${this.attribs.radius} /></label>`},
-    'x_spacing' : function() {return `<label>X gap<input id=${this.id + '-x_spacing'} type="number" value=${this.attribs.x_spacing} /></label>`},
-    'y_spacing' : function() {return `<label>Y gap<input id=${this.id + '-y_spacing'} type="number" value=${this.attribs.y_spacing} /></label>`},
-    'origin_x' : function() {return `<label>${this.attribs.originXLabel}<input id=${this.id + '-origin_x'} type="number" value=${this.attribs.origin_x} />`},
-    'origin_y' : function() {return `, <input id=${this.id + '-origin_y'} type="number" value=${this.attribs.origin_y}></label>`},
+    'rows' : function() {return `<label>Rows<input onchange="recalculate()" id=${this.id + '-rows'} type="number" value=${this.attribs.rows} /></label>`},
+    'cols' : function() {return `<label>Cols<input onchange="recalculate()" id=${this.id + '-cols'} type="number" value=${this.attribs.cols} /></label>`},
+    'radius' : function() {return `<label>Size<input onchange="recalculate()" id=${this.id + '-radius'} type="number" value=${this.attribs.radius} /></label>`},
+    'x_spacing' : function() {return `<label>X gap<input onchange="recalculate()" id=${this.id + '-x_spacing'} type="number" value=${this.attribs.x_spacing} /></label>`},
+    'y_spacing' : function() {return `<label>Y gap<input onchange="recalculate()" id=${this.id + '-y_spacing'} type="number" value=${this.attribs.y_spacing} /></label>`},
+    'origin_x' : function() {return `<label>${this.attribs.originXLabel}<input onchange="recalculate()" id=${this.id + '-origin_x'} type="number" value=${this.attribs.origin_x} />`},
+    'origin_y' : function() {return `, <input onchange="recalculate()" id=${this.id + '-origin_y'} type="number" value=${this.attribs.origin_y}></label>`},
     // TODO: make these self contained divs with a class making them inline-block or whatever
-    'rnd' : function() {return `<label>🎲 <input id='${this.elementId}-rnd' type='checkbox' ${this.attribs.rnd ? ' checked' : ''} />`}, 
-    'rndsign' : function() {return `↔ <input id='${this.elementId}-rndsign' type='checkbox' ${this.attribs.rndsign ? 'checked' : ''} />`},
-    'steps' : function() {return `📊 <input id='${this.elementId}-steps' type=number value=${this.steps} >`}
+    'rnd' : function() {return `<label>🎲 <input onchange="recalculate()" id='${this.elementId}-rnd' type='checkbox' ${this.attribs.rnd ? ' checked' : ''} />`}, 
+    'rndsign' : function() {return `↔ <input onchange="recalculate()" id='${this.elementId}-rndsign' type='checkbox' ${this.attribs.rndsign ? 'checked' : ''} />`},
+    'steps' : function() {return `📊 <input onchange="recalculate()" id='${this.elementId}-steps' type=number value=${this.steps} >`}
   }
 
       
@@ -746,6 +768,9 @@ class Generator extends PipelineStep {
 
 class ValueField {
   static #valueFields = {
+    'constant': function value(attribs, point) {
+      return attribs.max;
+    },
     'X': function value(attribs, point) {
       return attribs.rule ? point.x : attribs.min + ((attribs.max - attribs.min) * point.x / config.doc.w)
     },
@@ -754,7 +779,7 @@ class ValueField {
     },
     'radius': function value(attribs, point) {
       let r = Math.hypot(point.x - attribs.centre_x, point.y - attribs.centre_y);
-      return attribs.rule ? r : util.clamp(attribs.min, attribs.max, r / attribs.radius )
+      return attribs.rule ? r : util.clamp(attribs.min, attribs.max, attribs.min + (r / attribs.radius) * (attribs.max - attribs.min))
     },
     'angle': function value(attribs, point) {
       let angle_degrees = util.angleFromTop(point.x - attribs.centre_x, point.y - attribs.centre_y);
@@ -802,7 +827,17 @@ class Transform extends PipelineStep {
           p.y = shape.centre.y - dy
         }
       }
-      
+    },
+    'scale_x': {
+      humanName: "Scale width",
+      modify: function (shape, scalar) {
+        // scale shape's points based on scalar
+        for (let p of shape.points) {
+          let dx = shape.centre.x - p.x
+          dx = dx * scalar
+          p.x = shape.centre.x - dx
+        }
+      }
     },
     'rotateinplace': {
       humanName:"Rotate in place",
@@ -853,29 +888,32 @@ class Transform extends PipelineStep {
     // Seed the PRNG with the config random seed and the point's position
     let p = util.seededRand(point.x + ", " + point.y)
 
+    // lerp between baseValue and value based on rnd[0,1)
+    // return ((value * p) + (this.attribs.baseValue * (1-p)))
+    let lerpvalue = ((value * p) + (this.attribs.min * (1-p)))
+
     if (this.attribs.rndsign) {
       if (util.seededRand(point.x + " - " + point.y) < 0.5) {
-        p = 0-p;
+        lerpvalue = 0-lerpvalue;
       }
     }
 
-    // lerp between baseValue and value based on rnd[0,1)
-    return ((value * p) + (this.attribs.baseValue * (1-p)))
+    return lerpvalue;
   }
 
   // Put value into one of n equally likely buckets between min and max inclusive
   discretise(value) {
     if (this.attribs.steps == 0) return value;
     if (this.attribs.max == this.attribs.min) return this.attribs.min; // guard against /0
-    // Lets pretend min = 5, max = 10 and steps = 3, p = 7
-    let p = (value - this.attribs.min) / (this.attribs.max - this.attribs.min) // Normalise to 0 to 1 - gives us 0.4
+    // Do the whole thing on abs(value)                        // Lets pretend min = 5, max = 10 and steps = 3, p = 7
+    let p = (Math.abs(value) - this.attribs.min) / (this.attribs.max - this.attribs.min) // Normalise to 0 to 1 - gives us 0.4
     p = p * this.attribs.steps                                 // Normalise to 0 to steps - gives us 1.2
-    p = Math.floor(p)                                  // Round down 0, 1, ... (steps - 1) - gives us 1
+    p = Math.floor(p)                                          // Round down 0, 1, ... (steps - 1) - gives us 1. If we're doing bidirectional values as well, treat -1.5 as 1.5, floor to 1, re-negate to -1.
     p = p / (this.attribs.steps - 1)                           // Normalise back to [0,1) - gives us 0.5 as we're on middle step
     p = p * (this.attribs.max - this.attribs.min)                      // Normalise back to range extent - gives us 2.5
     p = p + this.attribs.min                                   // Move back up to actual range min-max - gives us 7.5
 
-    return p;
+    return (value < 0 ? 0-p : p);
   }  
 
   value(point) {
@@ -890,17 +928,17 @@ class Transform extends PipelineStep {
 
   renderMap = {
     'fieldType' : function() {
-      let ui = `<select id=${this.id + "-fieldType"}>`;
+      let ui = `<select onchange="recalculate()" id=${this.id + "-fieldType"}>`;
       for (let field of ValueField.getFieldTypes()) {
         ui = ui + `<option value=${field} ${field == this.attribs.fieldType ? ' selected' : ''}>${field}</option>`
       }
       ui = ui + '</select>'
       return ui;
     },
-    'centre_x': function() {return ['radius', 'angle'].includes(this.attribs.fieldType) ? `<label>about <input id=${this.id + '-centre_x'} type="number" value=${this.attribs.centre_x} />` : ''},  
-    'centre_y': function() {return ['radius', 'angle'].includes(this.attribs.fieldType) ? `, <input id=${this.id + '-centre_y'} type="number" value=${this.attribs.centre_y} />` : ''},  
-    'min' : function() {return `<label>From<input id=${this.id + '-min'} type="number" value=${this.attribs.min} /></label>`},  
-    'max' : function() {return `<label>To <input id=${this.id + '-max'} type="number" value=${this.attribs.max} /></label>`}, 
+    'centre_x': function() {return ['radius', 'angle'].includes(this.attribs.fieldType) ? `<label>about <input onchange="recalculate()" id=${this.id + '-centre_x'} type="number" value=${this.attribs.centre_x} />` : ''},  
+    'centre_y': function() {return ['radius', 'angle'].includes(this.attribs.fieldType) ? `, <input onchange="recalculate()" id=${this.id + '-centre_y'} type="number" value=${this.attribs.centre_y} />` : ''},  
+    'min' : function() {return `<label>From<input onchange="recalculate()" id=${this.id + '-min'} type="number" value=${this.attribs.min} /></label>`},  
+    'max' : function() {return `<label>To <input onchange="recalculate()" id=${this.id + '-max'} type="number" value=${this.attribs.max} /></label>`}, 
     'rnd': function(){return ''}, // done separately
     'rndsign': function(){return ''}, // done separately
     'steps': function(){return ''}, // done separately
@@ -917,9 +955,9 @@ class Transform extends PipelineStep {
     }
 
     // check boxen for randon/bidirectional/steps
-    ui = ui + `<label>🎲 <input id='${this.id}-rnd' type='checkbox' ${this.attribs.rnd ? ' checked' : ''}/> 
-                    ↔ <input id='${this.id}-rndsign' type='checkbox' ${this.attribs.rndsign ? ' checked' : ''}/>
-                    📊 <input id='${this.id}-steps' type=number value=${this.attribs.steps}>`
+    ui = ui + `<label>🎲 <input onchange="recalculate()" id='${this.id}-rnd' type='checkbox' ${this.attribs.rnd ? ' checked' : ''}/> 
+                    ↔ <input onchange="recalculate()" id='${this.id}-rndsign' type='checkbox' ${this.attribs.rndsign ? ' checked' : ''}/>
+                    📊 <input onchange="recalculate()" id='${this.id}-steps' type=number value=${this.attribs.steps}>`
 
     return ui
   }
@@ -974,10 +1012,11 @@ class Transform extends PipelineStep {
 
 
 const RuleSet = class extends PipelineStep {
-  colour = 'black';
+  colour;
   ruleGroups = [];
-  constructor() {
+  constructor(colour = 'black') {
     super();
+    this.colour = colour;
   }
   
   addGroup(g) {
@@ -1073,24 +1112,24 @@ class Rule extends PipelineStep {
 
   renderMap = {
     'fieldType' : function() {
-      let ui = `<select id=${this.id + "-fieldType"}>`;
+      let ui = `<select onchange="recalculate()" id=${this.id + "-fieldType"}>`;
       for (let field of ValueField.getFieldTypes()) {
-        ui = ui + `<option value=${field} ${field == this.attribs.fieldType ? ' selected' : ''}>${field}</option>`
+        ui = ui + `<option onchange="recalculate()" value=${field} ${field == this.attribs.fieldType ? ' selected' : ''}>${field}</option>`
       }
       ui = ui + '</select>'
       return ui;
     },    
     'operator' : function() {
-      let ui = `<select id=${this.id + "-operator"}>`;
+      let ui = `<select onchange="recalculate()" id=${this.id + "-operator"}>`;
       ui = ui + `<option value='gt' ${'gt' == this.attribs.operator ? ' selected' : ''}> &gt; </option>`
       ui = ui + `<option value='lt' ${'lt' == this.attribs.operator ? ' selected' : ''}> &lt; </option>`
       ui = ui + '</select>'
 
       return ui;
     },
-    'bound': function() {return `<input id='${this.id}-bound' type='number' value=${this.attribs.bound} />`},
-    'centre_x': function() {return ['radius', 'angle'].includes(this.attribs.fieldType) ? `<label>about <input id=${this.id + '-centre_x'} type="number" value=${this.attribs.centre_x} />` : ''},  
-    'centre_y': function() {return ['radius', 'angle'].includes(this.attribs.fieldType) ? `, <input id=${this.id + '-centre_y'} type="number" value=${this.attribs.centre_y} />` : ''},      
+    'bound': function() {return `<input onchange="recalculate()" id='${this.id}-bound' type='number' value=${this.attribs.bound} />`},
+    'centre_x': function() {return ['radius', 'angle'].includes(this.attribs.fieldType) ? `<label>about <input onchange="recalculate()" id=${this.id + '-centre_x'} type="number" value=${this.attribs.centre_x} />` : ''},  
+    'centre_y': function() {return ['radius', 'angle'].includes(this.attribs.fieldType) ? `, <input onchange="recalculate()" id=${this.id + '-centre_y'} type="number" value=${this.attribs.centre_y} />` : ''},      
   }
 
   renderInputs() {
@@ -1166,6 +1205,11 @@ pipe.ruleSets.push(eyeset) */
 pipe.ruleSets.push(defaultSet)
 config.pipelines.push(pipe)
 config.activePipeline = config.pipelines[0]
+for (let i=0; i<3; i++) {
+  let newpipe = new Pipeline()
+  newpipe.ruleSets.push(new RuleSet())
+  config.pipelines.push(newpipe)
+}
 
 refresh()
 
