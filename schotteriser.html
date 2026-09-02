@@ -198,7 +198,8 @@ let config = {
     w: 200, h: 200
   },
   pipelines: [],
-  activePipeline: null
+  activePipeline: null,
+  changeTimer: 0,
 }
 
 // whole page stuff
@@ -215,6 +216,26 @@ function recalculate() {
   updateSteps()
   // redrawSVG()
   refresh()
+}
+
+function formChangeRecalculate() {
+    const focusedId = document.activeElement?.id;
+
+    recalculate();
+
+    if (focusedId) {
+        document.getElementById(focusedId)?.focus();
+        document.getElementById(focusedId)?.setSelectionRange(0,9);
+    }
+}
+
+function queueFormChangeRecalculate() {
+  window.clearTimeout(config.changeTimer)
+  config.changeTimer = window.setTimeout(formChangeRecalculate, 100);
+}
+
+function formInputChangeHandler() {
+  queueFormChangeRecalculate();
 }
 
 function updateSteps() {
@@ -650,7 +671,33 @@ class Generator extends PipelineStep {
       p.points = [{x: p.centre.x, y: p.centre.y + p.radius}, 
                   {x: p.centre.x, y: p.centre.y - p.radius}];
                   p.close = false;
-    }
+    },
+    'circle': function(p) {
+      let count = 20;
+      for (let c=0; c<count; c++) {
+        p.points.push({
+          x: p.centre.x + (p.radius * Math.sin(c * 6.2832 / count )),  y:p.centre.y + (p.radius * Math.cos(c * 6.2832 / count))
+        }) 
+      }
+      p.close = true;
+    },
+    'arc': function(p) {
+      let count = 20;
+      let sides = Math.ceil((p.angle * 20) / 360);
+      for (let c=0; c<sides; c++) {
+        p.points.push({
+          x: p.centre.x + (p.radius * Math.sin(c * 6.2832 / count )),  y:p.centre.y + (p.radius * Math.cos(c * 6.2832 / count))
+        }) 
+      }
+      p.close = false;
+    },
+    'heart': function(p) {
+      const shapepoints = [[0, -0.5], [0.5, -1], [1, -1], [1.5, -0.5], [1.5, 0], [0, 1.5], [-1.5, 0], [-1.5, -0.5], [-1, -1], [-0.5, -1]];
+      for (let sp of shapepoints) {
+        p.points.push({x: p.centre.x + sp[0] * p.radius, y: p.centre.y + sp[1] * p.radius})
+      }
+      p.close = true;
+    },    
 
   }  
 
@@ -666,7 +713,7 @@ class Generator extends PipelineStep {
             g.push({
               centre: {
                 x, y
-              }, radius: this.attribs.radius, angle: 0, points: []
+              }, radius: this.attribs.radius, angle: 270, points: []
             })
           }
         }
@@ -684,7 +731,7 @@ class Generator extends PipelineStep {
             g.push({
               centre: {
                 x, y
-              }, radius: this.attribs.radius, angle: 0, points: []
+              }, radius: this.attribs.radius, angle: 270, points: []
             })
           }
         }
@@ -695,24 +742,24 @@ class Generator extends PipelineStep {
 
   renderMap = {
     'shape' : function() {
-      let ui = `<select onchange="recalculate()" id=${this.id + "-shape"}>`;
+      let ui = `<select onchange="formInputChangeHandler()" id=${this.id + "-shape"}>`;
       for (let shape in Generator.shapes) {
         ui = ui + `<option value=${shape} ${shape == this.attribs.shape ? ' selected' : ''}>${shape}</option>`
       }
       ui = ui + '</select>'
       return ui;
     },
-    'rows' : function() {return `<label>Rows<input onchange="recalculate()" id=${this.id + '-rows'} type="number" value=${this.attribs.rows} /></label>`},
-    'cols' : function() {return `<label>Cols<input onchange="recalculate()" id=${this.id + '-cols'} type="number" value=${this.attribs.cols} /></label>`},
-    'radius' : function() {return `<label>Size<input onchange="recalculate()" id=${this.id + '-radius'} type="number" value=${this.attribs.radius} /></label>`},
-    'x_spacing' : function() {return `<label>X gap<input onchange="recalculate()" id=${this.id + '-x_spacing'} type="number" value=${this.attribs.x_spacing} /></label>`},
-    'y_spacing' : function() {return `<label>Y gap<input onchange="recalculate()" id=${this.id + '-y_spacing'} type="number" value=${this.attribs.y_spacing} /></label>`},
-    'origin_x' : function() {return `<label>${this.attribs.originXLabel}<input onchange="recalculate()" id=${this.id + '-origin_x'} type="number" value=${this.attribs.origin_x} />`},
-    'origin_y' : function() {return `, <input onchange="recalculate()" id=${this.id + '-origin_y'} type="number" value=${this.attribs.origin_y}></label>`},
+    'rows' : function() {return `<label>Rows<input onchange="formInputChangeHandler()" id=${this.id + '-rows'} type="number" value=${this.attribs.rows} /></label>`},
+    'cols' : function() {return `<label>Cols<input onchange="formInputChangeHandler()" id=${this.id + '-cols'} type="number" value=${this.attribs.cols} /></label>`},
+    'radius' : function() {return `<label>Size<input onchange="formInputChangeHandler()" id=${this.id + '-radius'} type="number" value=${this.attribs.radius} /></label>`},
+    'x_spacing' : function() {return `<label>X gap<input onchange="formInputChangeHandler()" id=${this.id + '-x_spacing'} type="number" value=${this.attribs.x_spacing} /></label>`},
+    'y_spacing' : function() {return `<label>Y gap<input onchange="formInputChangeHandler()" id=${this.id + '-y_spacing'} type="number" value=${this.attribs.y_spacing} /></label>`},
+    'origin_x' : function() {return `<label>${this.attribs.originXLabel}<input onchange="formInputChangeHandler()" id=${this.id + '-origin_x'} type="number" value=${this.attribs.origin_x} />`},
+    'origin_y' : function() {return `, <input onchange="formInputChangeHandler()" id=${this.id + '-origin_y'} type="number" value=${this.attribs.origin_y}></label>`},
     // TODO: make these self contained divs with a class making them inline-block or whatever
-    'rnd' : function() {return `<label>🎲 <input onchange="recalculate()" id='${this.elementId}-rnd' type='checkbox' ${this.attribs.rnd ? ' checked' : ''} />`}, 
-    'rndsign' : function() {return `↔ <input onchange="recalculate()" id='${this.elementId}-rndsign' type='checkbox' ${this.attribs.rndsign ? 'checked' : ''} />`},
-    'steps' : function() {return `📊 <input onchange="recalculate()" id='${this.elementId}-steps' type=number value=${this.steps} >`}
+    'rnd' : function() {return `<label>🎲 <input onchange="formInputChangeHandler()" id='${this.elementId}-rnd' type='checkbox' ${this.attribs.rnd ? ' checked' : ''} />`}, 
+    'rndsign' : function() {return `↔ <input onchange="formInputChangeHandler()" id='${this.elementId}-rndsign' type='checkbox' ${this.attribs.rndsign ? 'checked' : ''} />`},
+    'steps' : function() {return `📊 <input onchange="formInputChangeHandler()" id='${this.elementId}-steps' type=number value=${this.steps} >`}
   }
 
       
@@ -883,14 +930,18 @@ class Transform extends PipelineStep {
   }
 
   randomise(value, point) {
-    if (this.attribs.rnd == false) return value;
+    if ((this.attribs.rnd || this.attribs.rndsign) == false) return value;
 
-    // Seed the PRNG with the config random seed and the point's position
-    let p = util.seededRand(point.x + ", " + point.y)
+    let lerpvalue = value;
 
-    // lerp between baseValue and value based on rnd[0,1)
-    // return ((value * p) + (this.attribs.baseValue * (1-p)))
-    let lerpvalue = ((value * p) + (this.attribs.min * (1-p)))
+    if (this.attribs.rnd) {
+      // Seed the PRNG with the config random seed and the point's position
+      let p = util.seededRand(point.x + ", " + point.y)
+
+      // lerp between min and value based on rnd[0,1)
+      // return ((value * p) + (this.attribs.baseValue * (1-p)))
+      lerpvalue = ((value * p) + (this.attribs.min * (1-p)))
+    }
 
     if (this.attribs.rndsign) {
       if (util.seededRand(point.x + " - " + point.y) < 0.5) {
@@ -928,17 +979,17 @@ class Transform extends PipelineStep {
 
   renderMap = {
     'fieldType' : function() {
-      let ui = `<select onchange="recalculate()" id=${this.id + "-fieldType"}>`;
+      let ui = `<select onchange="formInputChangeHandler()" id=${this.id + "-fieldType"}>`;
       for (let field of ValueField.getFieldTypes()) {
         ui = ui + `<option value=${field} ${field == this.attribs.fieldType ? ' selected' : ''}>${field}</option>`
       }
       ui = ui + '</select>'
       return ui;
     },
-    'centre_x': function() {return ['radius', 'angle'].includes(this.attribs.fieldType) ? `<label>about <input onchange="recalculate()" id=${this.id + '-centre_x'} type="number" value=${this.attribs.centre_x} />` : ''},  
-    'centre_y': function() {return ['radius', 'angle'].includes(this.attribs.fieldType) ? `, <input onchange="recalculate()" id=${this.id + '-centre_y'} type="number" value=${this.attribs.centre_y} />` : ''},  
-    'min' : function() {return `<label>From<input onchange="recalculate()" id=${this.id + '-min'} type="number" value=${this.attribs.min} /></label>`},  
-    'max' : function() {return `<label>To <input onchange="recalculate()" id=${this.id + '-max'} type="number" value=${this.attribs.max} /></label>`}, 
+    'centre_x': function() {return ['radius', 'angle'].includes(this.attribs.fieldType) ? `<label>about <input onchange="formInputChangeHandler()" id=${this.id + '-centre_x'} type="number" value=${this.attribs.centre_x} />` : ''},  
+    'centre_y': function() {return ['radius', 'angle'].includes(this.attribs.fieldType) ? `, <input onchange="formInputChangeHandler()" id=${this.id + '-centre_y'} type="number" value=${this.attribs.centre_y} />` : ''},  
+    'min' : function() {return `<label>From<input onchange="formInputChangeHandler()" id=${this.id + '-min'} type="number" value=${this.attribs.min} /></label>`},  
+    'max' : function() {return `<label>To <input onchange="formInputChangeHandler()" id=${this.id + '-max'} type="number" value=${this.attribs.max} /></label>`}, 
     'rnd': function(){return ''}, // done separately
     'rndsign': function(){return ''}, // done separately
     'steps': function(){return ''}, // done separately
@@ -955,9 +1006,9 @@ class Transform extends PipelineStep {
     }
 
     // check boxen for randon/bidirectional/steps
-    ui = ui + `<label>🎲 <input onchange="recalculate()" id='${this.id}-rnd' type='checkbox' ${this.attribs.rnd ? ' checked' : ''}/> 
-                    ↔ <input onchange="recalculate()" id='${this.id}-rndsign' type='checkbox' ${this.attribs.rndsign ? ' checked' : ''}/>
-                    📊 <input onchange="recalculate()" id='${this.id}-steps' type=number value=${this.attribs.steps}>`
+    ui = ui + `<label>🎲 <input onchange="formInputChangeHandler()" id='${this.id}-rnd' type='checkbox' ${this.attribs.rnd ? ' checked' : ''}/> 
+                    ↔ <input onchange="formInputChangeHandler()" id='${this.id}-rndsign' type='checkbox' ${this.attribs.rndsign ? ' checked' : ''}/>
+                    📊 <input onchange="formInputChangeHandler()" id='${this.id}-steps' type=number value=${this.attribs.steps}>`
 
     return ui
   }
@@ -1112,24 +1163,24 @@ class Rule extends PipelineStep {
 
   renderMap = {
     'fieldType' : function() {
-      let ui = `<select onchange="recalculate()" id=${this.id + "-fieldType"}>`;
+      let ui = `<select onchange="formInputChangeHandler()" id=${this.id + "-fieldType"}>`;
       for (let field of ValueField.getFieldTypes()) {
-        ui = ui + `<option onchange="recalculate()" value=${field} ${field == this.attribs.fieldType ? ' selected' : ''}>${field}</option>`
+        ui = ui + `<option onchange="formInputChangeHandler()" value=${field} ${field == this.attribs.fieldType ? ' selected' : ''}>${field}</option>`
       }
       ui = ui + '</select>'
       return ui;
     },    
     'operator' : function() {
-      let ui = `<select onchange="recalculate()" id=${this.id + "-operator"}>`;
+      let ui = `<select onchange="formInputChangeHandler()" id=${this.id + "-operator"}>`;
       ui = ui + `<option value='gt' ${'gt' == this.attribs.operator ? ' selected' : ''}> &gt; </option>`
       ui = ui + `<option value='lt' ${'lt' == this.attribs.operator ? ' selected' : ''}> &lt; </option>`
       ui = ui + '</select>'
 
       return ui;
     },
-    'bound': function() {return `<input onchange="recalculate()" id='${this.id}-bound' type='number' value=${this.attribs.bound} />`},
-    'centre_x': function() {return ['radius', 'angle'].includes(this.attribs.fieldType) ? `<label>about <input onchange="recalculate()" id=${this.id + '-centre_x'} type="number" value=${this.attribs.centre_x} />` : ''},  
-    'centre_y': function() {return ['radius', 'angle'].includes(this.attribs.fieldType) ? `, <input onchange="recalculate()" id=${this.id + '-centre_y'} type="number" value=${this.attribs.centre_y} />` : ''},      
+    'bound': function() {return `<input onchange="formInputChangeHandler()" id='${this.id}-bound' type='number' value=${this.attribs.bound} />`},
+    'centre_x': function() {return ['radius', 'angle'].includes(this.attribs.fieldType) ? `<label>about <input onchange="formInputChangeHandler()" id=${this.id + '-centre_x'} type="number" value=${this.attribs.centre_x} />` : ''},  
+    'centre_y': function() {return ['radius', 'angle'].includes(this.attribs.fieldType) ? `, <input onchange="formInputChangeHandler()" id=${this.id + '-centre_y'} type="number" value=${this.attribs.centre_y} />` : ''},      
   }
 
   renderInputs() {
