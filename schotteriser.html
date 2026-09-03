@@ -39,10 +39,10 @@ config object setup
       overflow:scroll;
     }
 
-    label {
+    /* label {
       display: block;
       margin: 6px 0
-    }
+    } */
 
     svg {
       border: 1px solid #888;
@@ -71,9 +71,123 @@ config object setup
       margin-bottom: 3px;
     }
 
-    .step-container {
-      border: 1px solid black;
-    }
+
+.step-container {
+    position: relative;
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 6px 12px;
+
+    padding: 12px 32px 12px 14px;
+    box-sizing: border-box;
+
+    background: #f7f7f5;
+    border: 1px solid #d4d4cf;
+    border-radius: 5px;
+
+    align-items: center;
+}
+
+.step-container > label:first-of-type {
+    font-weight: 600;
+    color: #333;
+}
+
+.step-title {
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 2px;
+}
+
+.step-container > .step-buttons {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+
+    border: 0;
+    background: transparent;
+    color: #777;
+    cursor: pointer;
+}
+
+.step-container > button:hover {
+    color: #b33;
+}
+
+.parameter {
+    display: contents;
+    border: 1px dashed red;
+}
+
+.parameter.checkbox-row {
+    display: flex;
+    grid-column: 1 / -1;
+    gap: 10px;
+    align-items: center;
+}
+
+.parameter-values {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+}
+
+.parameter input,
+.parameter select,
+.step-container > select {
+    padding: 3px 5px;
+
+    border: 1px solid #bdbdb8;
+    border-radius: 3px;
+    background: white;
+
+    font: inherit;
+
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.parameter input {
+    width: 60px;
+    box-sizing: border-box;
+}
+
+.parameter input.attrib-check {
+  width: 20px;
+}
+
+.parameter input:focus,
+.parameter select:focus,
+.step-container > select:focus {
+    outline: 2px solid #8aa6a3;
+    outline-offset: 1px;
+    border-color: #718f8c;
+}
+
+.add-step {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 6px 12px;
+    align-items: center;
+    padding: 12px 32px 12px 14px;
+
+}
+
+.add-step button {
+    padding: 5px 10px;
+
+    border: 1px solid #aaa;
+    border-radius: 4px;
+    background: #e8e8e4;
+    color: #333;
+
+    cursor: pointer;
+}
+
+.add-step button:hover {
+    background: #deded9;
+}
 
     input {
       -moz-appearance: textfield;
@@ -488,11 +602,11 @@ class Pipeline {
       ui = ui + '<div class="step-container" id="' + gen.elementId + '-container">' + gen.renderInputs() + '</div>'
     }
 
-    ui = ui + '<button onclick="newGenerator()">New </button><select id="new-gen-type">'
+    ui = ui + '<div class="add-step"><button onclick="newGenerator()">New </button><select id="new-gen-type">'
     for (let gt in Generator.patterns) {
       ui = ui + `<option value=${gt}>${Generator.patterns[gt].humanName}</option>`
     }
-    ui = ui + '</select></div>'
+    ui = ui + '</select></div></div>'
 
     
     ui = ui + '<div id="transforms-ui" class="step-group">'
@@ -519,10 +633,11 @@ class Pipeline {
         ui = ui + `<option style="background-color: ${col}" value="${col}" ${rs.colour == col ? 'selected' : ''}>.</option>`; // ${rs.colour == col ? 'selected' : ''}
       }
       ui = ui + '</select>'
-      ui = ui + '<button style="float: right;" onclick="removeStepGlobal(\'' + rs.id + '\')">X</button>';
-      ui = ui + '<button style="float: right;" onclick="stepDown(\'' + rs.id + '\')">🔽</button>';
-      ui = ui + '<button style="float: right;" onclick="stepUp(\'' + rs.id + '\')">🔼</button>';
-      ui = ui + '</p>'
+      ui = ui + '<div class="step-buttons">'
+      ui = ui + '<button onclick="stepUp(\'' + rs.id + '\')">🔼</button>';
+      ui = ui + '<button onclick="stepDown(\'' + rs.id + '\')">🔽</button>';
+      ui = ui + '<button onclick="removeStepGlobal(\'' + rs.id + '\')">❎</button>';
+      ui = ui + '</div>'
 
       for (let rg of rs.ruleGroups) {
         ui = ui + '<div class="rule-group">'
@@ -581,7 +696,7 @@ class PipelineStep {
   }
   renderGenericInputs(elementId) {
     const clickHandler = "removeStepGlobal('" + this.id + "')"
-    return '<button style="float: right;" onclick="' + clickHandler + '">X</button>';
+    return ''; // '<button onclick="' + clickHandler + '">X</button>';
   }
   setValues(v) {
   }
@@ -749,17 +864,17 @@ class Generator extends PipelineStep {
       ui = ui + '</select>'
       return ui;
     },
-    'rows' : function() {return `<label>Rows<input onchange="formInputChangeHandler()" id=${this.id + '-rows'} type="number" value=${this.attribs.rows} /></label>`},
-    'cols' : function() {return `<label>Cols<input onchange="formInputChangeHandler()" id=${this.id + '-cols'} type="number" value=${this.attribs.cols} /></label>`},
-    'radius' : function() {return `<label>Size<input onchange="formInputChangeHandler()" id=${this.id + '-radius'} type="number" value=${this.attribs.radius} /></label>`},
-    'x_spacing' : function() {return `<label>X gap<input onchange="formInputChangeHandler()" id=${this.id + '-x_spacing'} type="number" value=${this.attribs.x_spacing} /></label>`},
-    'y_spacing' : function() {return `<label>Y gap<input onchange="formInputChangeHandler()" id=${this.id + '-y_spacing'} type="number" value=${this.attribs.y_spacing} /></label>`},
-    'origin_x' : function() {return `<label>${this.attribs.originXLabel}<input onchange="formInputChangeHandler()" id=${this.id + '-origin_x'} type="number" value=${this.attribs.origin_x} />`},
-    'origin_y' : function() {return `, <input onchange="formInputChangeHandler()" id=${this.id + '-origin_y'} type="number" value=${this.attribs.origin_y}></label>`},
+    'rows' : function() {return `<div class="parameter"><label>Rows</label><input onchange="formInputChangeHandler()" id=${this.id + '-rows'} type="number" value=${this.attribs.rows} /></div>`},
+    'cols' : function() {return `<div class="parameter"><label>Cols</label><input onchange="formInputChangeHandler()" id=${this.id + '-cols'} type="number" value=${this.attribs.cols} /></div>`},
+    'radius' : function() {return `<div class="parameter"><label>Size</label><input onchange="formInputChangeHandler()" id=${this.id + '-radius'} type="number" value=${this.attribs.radius} /></div>`},
+    'x_spacing' : function() {return `<div class="parameter"><label>X gap</label><input onchange="formInputChangeHandler()" id=${this.id + '-x_spacing'} type="number" value=${this.attribs.x_spacing} /></div>`},
+    'y_spacing' : function() {return `<div class="parameter"><label>Y gap</label><input onchange="formInputChangeHandler()" id=${this.id + '-y_spacing'} type="number" value=${this.attribs.y_spacing} /></div>`},
+    'origin_x' : function() {return `<div class="parameter"><label>${this.attribs.originXLabel}</label><div class="parameter-values"><input onchange="formInputChangeHandler()" id=${this.id + '-origin_x'} type="number" value=${this.attribs.origin_x} />`},
+    'origin_y' : function() {return `, <input onchange="formInputChangeHandler()" id=${this.id + '-origin_y'} type="number" value=${this.attribs.origin_y}></div></div>`},
     // TODO: make these self contained divs with a class making them inline-block or whatever
-    'rnd' : function() {return `<label>🎲 <input onchange="formInputChangeHandler()" id='${this.elementId}-rnd' type='checkbox' ${this.attribs.rnd ? ' checked' : ''} />`}, 
+    'rnd' : function() {return `<div class="parameter"><label>🎲</label><input onchange="formInputChangeHandler()" id='${this.elementId}-rnd' type='checkbox' ${this.attribs.rnd ? ' checked' : ''} />`}, 
     'rndsign' : function() {return `↔ <input onchange="formInputChangeHandler()" id='${this.elementId}-rndsign' type='checkbox' ${this.attribs.rndsign ? 'checked' : ''} />`},
-    'steps' : function() {return `📊 <input onchange="formInputChangeHandler()" id='${this.elementId}-steps' type=number value=${this.steps} >`}
+    'steps' : function() {return `📊 <input onchange="formInputChangeHandler()" id='${this.elementId}-steps' type=number value=${this.steps} ></div>`}
   }
 
       
@@ -776,7 +891,7 @@ class Generator extends PipelineStep {
   }
 
   renderInputs() {
-    let ui = this.renderGenericInputs() + '<label>' + Generator.patterns[this.pattern].humanName + '</label>';
+    let ui = this.renderGenericInputs() + '<div class="step-title">' + Generator.patterns[this.pattern].humanName + '</div>';
     for (let attribute in this.attribs) {
       if (typeof this.renderMap[attribute] !== 'undefined') {
         ui = ui + this.renderMap[attribute].call(this)
@@ -979,17 +1094,17 @@ class Transform extends PipelineStep {
 
   renderMap = {
     'fieldType' : function() {
-      let ui = `<select onchange="formInputChangeHandler()" id=${this.id + "-fieldType"}>`;
+      let ui = `<div class="parameter"><label>using</label><select onchange="formInputChangeHandler()" id=${this.id + "-fieldType"}>`;
       for (let field of ValueField.getFieldTypes()) {
         ui = ui + `<option value=${field} ${field == this.attribs.fieldType ? ' selected' : ''}>${field}</option>`
       }
-      ui = ui + '</select>'
+      ui = ui + '</select></div>'
       return ui;
     },
-    'centre_x': function() {return ['radius', 'angle'].includes(this.attribs.fieldType) ? `<label>about <input onchange="formInputChangeHandler()" id=${this.id + '-centre_x'} type="number" value=${this.attribs.centre_x} />` : ''},  
-    'centre_y': function() {return ['radius', 'angle'].includes(this.attribs.fieldType) ? `, <input onchange="formInputChangeHandler()" id=${this.id + '-centre_y'} type="number" value=${this.attribs.centre_y} />` : ''},  
-    'min' : function() {return `<label>From<input onchange="formInputChangeHandler()" id=${this.id + '-min'} type="number" value=${this.attribs.min} /></label>`},  
-    'max' : function() {return `<label>To <input onchange="formInputChangeHandler()" id=${this.id + '-max'} type="number" value=${this.attribs.max} /></label>`}, 
+    'centre_x': function() {return ['radius', 'angle'].includes(this.attribs.fieldType) ? `<div class="parameter"><label>about</label><input onchange="formInputChangeHandler()" id=${this.id + '-centre_x'} type="number" value=${this.attribs.centre_x} />` : ''},  
+    'centre_y': function() {return ['radius', 'angle'].includes(this.attribs.fieldType) ? `, <input onchange="formInputChangeHandler()" id=${this.id + '-centre_y'} type="number" value=${this.attribs.centre_y} /></div>` : ''},  
+    'min' : function() {return `<div class="parameter"><label>From</label><input onchange="formInputChangeHandler()" id=${this.id + '-min'} type="number" value=${this.attribs.min} /></div>`},  
+    'max' : function() {return `<div class="parameter"><label>To</label><input onchange="formInputChangeHandler()" id=${this.id + '-max'} type="number" value=${this.attribs.max} /></div>`}, 
     'rnd': function(){return ''}, // done separately
     'rndsign': function(){return ''}, // done separately
     'steps': function(){return ''}, // done separately
@@ -997,7 +1112,7 @@ class Transform extends PipelineStep {
   }
 
   renderInputs() {
-    let ui = this.renderGenericInputs() + Transform.#modifiers[this.attribs.modifyType].humanName + ' using ';
+    let ui = this.renderGenericInputs() + '<div class="parameter"><label>Xform</label><label>' + Transform.#modifiers[this.attribs.modifyType].humanName + '</label>'; // T\ODO: make this a select
 
     for (let attribute in this.attribs) {
       if (typeof this.renderMap[attribute] !== 'undefined') {
@@ -1006,9 +1121,9 @@ class Transform extends PipelineStep {
     }
 
     // check boxen for randon/bidirectional/steps
-    ui = ui + `<label>🎲 <input onchange="formInputChangeHandler()" id='${this.id}-rnd' type='checkbox' ${this.attribs.rnd ? ' checked' : ''}/> 
-                    ↔ <input onchange="formInputChangeHandler()" id='${this.id}-rndsign' type='checkbox' ${this.attribs.rndsign ? ' checked' : ''}/>
-                    📊 <input onchange="formInputChangeHandler()" id='${this.id}-steps' type=number value=${this.attribs.steps}>`
+    ui = ui + `<div class="parameter checkbox-row"><label>🎲 <input onchange="formInputChangeHandler()" id='${this.id}-rnd' class="attrib-check" type='checkbox' ${this.attribs.rnd ? ' checked' : ''}/> 
+                    ↔ <input onchange="formInputChangeHandler()" class="attrib-check" id='${this.id}-rndsign' type='checkbox' ${this.attribs.rndsign ? ' checked' : ''}/>
+                    📊 <input onchange="formInputChangeHandler()" class="attrib-check" id='${this.id}-steps' type=number value=${this.attribs.steps}></label></div for="chexrow">`
 
     return ui
   }
