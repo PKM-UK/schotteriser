@@ -339,7 +339,6 @@ function formChangeRecalculate() {
 
     if (focusedId) {
         document.getElementById(focusedId)?.focus();
-        document.getElementById(focusedId)?.setSelectionRange(0,9);
     }
 }
 
@@ -384,8 +383,7 @@ function removeStepGlobal(id) {
 }
 
 function newGenerator() {
-  let type = document.getElementById('new-gen-type').value;
-  let newGen = new Generator(type)
+  let newGen = new Generator(Generator.patterns[0])
   config.activePipeline.generators.push(newGen)
   refresh(); 
 }
@@ -602,11 +600,7 @@ class Pipeline {
       ui = ui + '<div class="step-container" id="' + gen.elementId + '-container">' + gen.renderInputs() + '</div>'
     }
 
-    ui = ui + '<div class="add-step"><button onclick="newGenerator()">New </button><select id="new-gen-type">'
-    for (let gt in Generator.patterns) {
-      ui = ui + `<option value=${gt}>${Generator.patterns[gt].humanName}</option>`
-    }
-    ui = ui + '</select></div></div>'
+    ui = ui + '<div class="add-step"><button onclick="newGenerator()">New generator</button></div></div>'
 
     
     ui = ui + '<div id="transforms-ui" class="step-group">'
@@ -726,33 +720,8 @@ class Generator extends PipelineStep {
     if (!(shape in Generator.shapes) || !(pattern in Generator.patterns)) {
       throw new Error('Invalid Generator option');
     }
-    this.attribs.shape = shape;
-    this.shapefn = Generator.shapes[shape];
-    this.pattern = pattern;
-    this.generatePoints = Generator.patterns[this.pattern].generatePoints; // this binding
-    
-    // idiot proof init blocks
-    this.attribs.radius = 5; // every shape needs a radius
-    
-
-    if (pattern == 'grid' || pattern == 'staggeredgrid') {
-      this.attribs.rows = 10;
-      this.attribs.cols = 10;
-      this.attribs.x_spacing = 20;
-      this.attribs.y_spacing = 20;
-      this.attribs.origin_x = 10;
-      this.attribs.origin_y = 10;
-      this.attribs.originXLabel = 'Start at';
-    } else if (pattern == 'circle') {
-      // ...
-      this.attribs.points = 12;
-      this.attribs.origin_x = 100;
-      this.attribs.origin_y = 100;
-      this.attribs.originXLabel = 'Centre';
-    }
-    // this.attribs.rnd = false;
-    // this.attribs.rndsign = false;
-    // this.attribs.steps = 0;
+    this.attributeChange('pattern', pattern)
+    this.attributeChange('shape', shape)
   }
   static shapes = {
     'hexagon': function(p) {
@@ -852,21 +821,69 @@ class Generator extends PipelineStep {
         }
         return g
       }
+    },
+    'circle': {
+      humanName: 'Circle', 
+      generatePoints: function generatePoints() {
+        let g = [];
+        for (let row = 0; row < this.attribs.points; row++){ 
+          let x = this.attribs.origin_x + (Math.sin((row * 6.2832) / this.attribs.points) * this.attribs.patternradius), y = this.attribs.origin_y + (Math.cos((row * 6.2832) / this.attribs.points) * this.attribs.patternradius)
+          // push a shape with a centre and radius to g
+          g.push({
+            centre: {
+              x, y
+            }, radius: this.attribs.radius, angle: 270, points: []
+          })
+        }
+        return g
+      }      
     }
   }
 
+  defaultVals = {
+    'all': {
+      'radius': 5
+    },
+    'grid staggeredgrid': {
+      'rows': 10,
+      'cols': 10,
+      'x_spacing': 20,
+      'y_spacing': 20,
+      'origin_x': 10,
+      'origin_y': 10,
+      'originXLabel': 'Start at',
+    },
+    'circle': {
+      'points': 16,
+      'origin_x': 100,
+      'origin_y': 100,
+      'patternradius': 50,
+      'originXLabel': 'Centre',        
+    }
+  }  
+
   renderMap = {
+    'pattern': function() {
+      let ui = `<div class="parameter"><label>Pattern</label><select onchange="formInputChangeHandler()" id=${this.id + "-pattern"}>`;
+      for (let pattern in Generator.patterns) {
+        ui = ui + `<option value=${pattern} ${pattern == this.attribs.pattern ? ' selected' : ''}>${Generator.patterns[pattern].humanName}</option>`
+      }
+      ui = ui + '</select></div>'
+      return ui;
+    },
     'shape' : function() {
-      let ui = `<select onchange="formInputChangeHandler()" id=${this.id + "-shape"}>`;
+      let ui = `<div class="parameter"><label>Shape</label><select onchange="formInputChangeHandler()" id=${this.id + "-shape"}>`;
       for (let shape in Generator.shapes) {
         ui = ui + `<option value=${shape} ${shape == this.attribs.shape ? ' selected' : ''}>${shape}</option>`
       }
-      ui = ui + '</select>'
+      ui = ui + '</select></div>'
       return ui;
     },
     'rows' : function() {return `<div class="parameter"><label>Rows</label><input onchange="formInputChangeHandler()" id=${this.id + '-rows'} type="number" value=${this.attribs.rows} /></div>`},
     'cols' : function() {return `<div class="parameter"><label>Cols</label><input onchange="formInputChangeHandler()" id=${this.id + '-cols'} type="number" value=${this.attribs.cols} /></div>`},
+    'points' : function() {return `<div class="parameter"><label>Points</label><input onchange="formInputChangeHandler()" id=${this.id + '-points'} type="number" value=${this.attribs.points} /></div>`},
     'radius' : function() {return `<div class="parameter"><label>Size</label><input onchange="formInputChangeHandler()" id=${this.id + '-radius'} type="number" value=${this.attribs.radius} /></div>`},
+    'patternradius' : function() {return `<div class="parameter"><label>Radius</label><input onchange="formInputChangeHandler()" id=${this.id + '-patternradius'} type="number" value=${this.attribs.patternradius} /></div>`},
     'x_spacing' : function() {return `<div class="parameter"><label>X gap</label><input onchange="formInputChangeHandler()" id=${this.id + '-x_spacing'} type="number" value=${this.attribs.x_spacing} /></div>`},
     'y_spacing' : function() {return `<div class="parameter"><label>Y gap</label><input onchange="formInputChangeHandler()" id=${this.id + '-y_spacing'} type="number" value=${this.attribs.y_spacing} /></div>`},
     'origin_x' : function() {return `<div class="parameter"><label>${this.attribs.originXLabel}</label><div class="parameter-values"><input onchange="formInputChangeHandler()" id=${this.id + '-origin_x'} type="number" value=${this.attribs.origin_x} />`},
@@ -891,9 +908,11 @@ class Generator extends PipelineStep {
   }
 
   renderInputs() {
-    let ui = this.renderGenericInputs() + '<div class="step-title">' + Generator.patterns[this.pattern].humanName + '</div>';
+    let ui = this.renderGenericInputs() + this.renderMap['pattern'].call(this) + this.renderMap['shape'].call(this);
+
+    let attribsToRender = this.attribsInPattern();
     for (let attribute in this.attribs) {
-      if (typeof this.renderMap[attribute] !== 'undefined') {
+      if (attribsToRender.includes(attribute) && typeof this.renderMap[attribute] !== 'undefined') {
         ui = ui + this.renderMap[attribute].call(this)
       }
     }
@@ -912,13 +931,47 @@ class Generator extends PipelineStep {
   }
 
   attributeChange(attribute, newval) {
+    // Generic change attribute value first in case subsequent stuff relies on it (like fillDefaultAttribs)
+    this.attribs[attribute] = newval;
+
     // Special cases
     if (attribute == 'shape') {
       this.shapefn = Generator.shapes[newval]
     }
+    if (attribute == 'pattern') {
+      this.generatePoints = Generator.patterns[newval].generatePoints;
+      this.fillDefaultAttribs();
+    }
 
-    // Generic change attribute value
-    this.attribs[attribute] = newval;
+    
+  }
+
+  fillDefaultAttribs() {
+    // idiot proof init blocks
+    for (let sensibleDefault in this.defaultVals['all']) {
+      this.fillUndefinedAttrib(sensibleDefault, this.defaultVals['all'][sensibleDefault])
+    }
+    for (let set in this.defaultVals) {
+      if (set.split(' ').includes(this.attribs.pattern)) {
+        for (let sensibleDefault in this.defaultVals[set]) {
+          this.fillUndefinedAttrib(sensibleDefault, this.defaultVals[set][sensibleDefault])
+        }   
+      }
+    }
+  }
+
+  fillUndefinedAttrib(attribute, newval) {
+    if (typeof this.attribs[attribute] == 'undefined') {
+      this.attributeChange(attribute, newval)
+    }
+  }
+
+  attribsInPattern() {
+    for (let set in this.defaultVals) {
+      if (set.split(' ').includes(this.attribs.pattern)) {
+        return Object.keys(this.defaultVals['all']).concat(Object.keys(this.defaultVals[set]))
+      }
+    }
   }
 }
 
