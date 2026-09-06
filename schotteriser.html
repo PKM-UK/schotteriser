@@ -199,6 +199,43 @@ config object setup
       -webkit-appearance: none;
       margin: 0;
     }
+
+.colour-picker {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    padding: 5px;
+}
+
+.colour-picker input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.colour-picker label {
+    width: 22px;
+    height: 22px;
+    display: block;
+
+    background: var(--colour);
+    border: 2px solid #aaa;
+    border-radius: 4px;
+
+    cursor: pointer;
+    box-sizing: border-box;
+}
+
+.colour-picker input[type="radio"]:checked + label {
+    border-color: #333;
+    outline: 2px solid #333;
+    outline-offset: 2px;
+}
+
+.colour-picker input[type="radio"]:focus-visible + label {
+    outline: 2px solid #718f8c;
+    outline-offset: 2px;
+}
     
   </style>
 </head>
@@ -619,15 +656,19 @@ class Pipeline {
       
     
     for (let rs of this.ruleSets) {
-      ui = ui + '<div class="rule-set"><p>'
+      ui = ui + `<div class="rule-set"><div class="colour-picker" id="${rs.id}-colour">`
 
       // colour picker
-      ui = ui + `<select id="${rs.id}-colour" style="background-color: ${rs.colour}">`
-      for (let col of ['black', 'red', 'green', 'blue', 'purple']) {
-        ui = ui + `<option style="background-color: ${col}" value="${col}" ${rs.colour == col ? 'selected' : ''}>.</option>`; // ${rs.colour == col ? 'selected' : ''}
+      let cols = ['black', 'red', 'green', 'blue', 'purple'];
+      for (let i in cols) {
+        let col = cols[i];
+        ui = ui + `
+          <input type="radio" name="${rs.id}-colour" id="${rs.id}-colour-${col}" value="${col}" ${rs.colour == col ? 'checked' : ''}>
+          <label for="${rs.id}-colour-${col}" style="--colour: ${col}"></label>
+        `
       }
-      ui = ui + '</select>'
-      ui = ui + '<div class="step-buttons">'
+
+      ui = ui + '</div><div class="step-buttons">'
       ui = ui + '<button onclick="stepUp(\'' + rs.id + '\')">🔼</button>';
       ui = ui + '<button onclick="stepDown(\'' + rs.id + '\')">🔽</button>';
       ui = ui + '<button onclick="removeStepGlobal(\'' + rs.id + '\')">❎</button>';
@@ -1268,7 +1309,8 @@ const RuleSet = class extends PipelineStep {
 
   readInputs() {
     // Pretty simple
-    this.colour = this.readInput('colour')
+    // this.colour = this.readInput('colour')
+    this.colour = document.querySelector('input[name="' + this.id + '-colour"]:checked').value;
   }
 }
 
