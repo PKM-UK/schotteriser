@@ -18,59 +18,66 @@ config object setup
   <meta charset='utf-8'>
   <title>Plotter</title>
   <style>
-    body {
-      margin: 0;
-      display: flex;
-      font-family: Arial
-    }
+body {
+  margin: 0;
+  display: flex;
+  font-family: Arial;
+  overflow: hidden;
+}
 
-    #side {
-      width: 300px;
-      padding: 12px;
-      background: #eee
-    }
+#side {
+  width: 300px;
+  padding: 12px;
+  background: #eee
+}
 
-    #main {
-      flex: 1;
-      padding: 12px
-    }
+#main {
+  flex: 1;
+  padding: 12px;
+  overflow-x: scroll;
+}
 
-    #side {
-      overflow:scroll;
-    }
+#side {
+  overflow:scroll;
+}
 
-    /* label {
-      display: block;
-      margin: 6px 0
-    } */
+svg {
+  border: 1px solid #888;
+  width: 700px;
+  height: 700px
+}
 
-    svg {
-      border: 1px solid #888;
-      width: 700px;
-      height: 700px
-    }
+/* Generic step stuff */
 
-    .rule-set, .rule-group, .step-group {
-      border: 1px solid black;
-      margin-bottom: 1em;
-      margin-left: 2px;
-      margin-right: 2px;
-    }
+.rule-set, .rule-group, .step-group {
+  position: relative;
+  border: 1px solid black;
+  margin-bottom: 1em;
+  margin-left: 2px;
+  margin-right: 2px;
+}
 
-    .colour-block {
-      width: 2em;
-      height: 2em;
-    }
+.rule-set {
+  padding-top: 32px; /* space for buttons */
+}
 
-    .step-group input {
-      width: 3em;
-    }
+.rule-element {
+  padding: 1px 0px;
+}
 
-    .step-group p {
-      margin-top: 3px;
-      margin-bottom: 3px;
-    }
+.colour-block {
+  width: 2em;
+  height: 2em;
+}
 
+.step-group input {
+  width: 3em;
+}
+
+.step-group p {
+  margin-top: 3px;
+  margin-bottom: 3px;
+}
 
 .step-container {
     position: relative;
@@ -78,7 +85,7 @@ config object setup
     grid-template-columns: max-content minmax(0, 1fr);
     gap: 6px 12px;
 
-    padding: 12px 32px 12px 14px;
+    padding: 32px 12px 12px 14px;
     box-sizing: border-box;
 
     background: #f7f7f5;
@@ -99,15 +106,20 @@ config object setup
     margin-bottom: 2px;
 }
 
-.step-container > .step-buttons {
+.step-container > .step-buttons, .rule-set > .step-buttons {
     position: absolute;
-    top: 8px;
-    right: 8px;
+    top: 4px;
+    right: 4px;
 
     border: 0;
     background: transparent;
     color: #777;
     cursor: pointer;
+}
+
+.step-buttons button, .step-button {
+    padding: 1px;
+    margin: 1px;
 }
 
 .step-container > button:hover {
@@ -116,7 +128,6 @@ config object setup
 
 .parameter {
     display: contents;
-    border: 1px dashed red;
 }
 
 .parameter.checkbox-row {
@@ -174,9 +185,8 @@ config object setup
 
 }
 
-.add-step button {
+.add-step button, .add-step select {
     padding: 5px 10px;
-
     border: 1px solid #aaa;
     border-radius: 4px;
     background: #e8e8e4;
@@ -185,19 +195,23 @@ config object setup
     cursor: pointer;
 }
 
+.add-step select {
+  padding: 5px;
+}
+
 .add-step button:hover {
     background: #deded9;
 }
 
-    input {
-      -moz-appearance: textfield;
-      appearance: textfield;
-    }
-    
-    input::-webkit-outer-spin-button,
-    input::-webkit-inner-spin-button {
-      -webkit-appearance: none;
-      margin: 0;
+input {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
     }
 
 .colour-picker {
@@ -251,7 +265,7 @@ config object setup
     </div>
     <div id="buttons-ui">
       <button onclick='recalculate()'>Recalculate</button>
-      <button onclick='download("all")'>Preview SVG</button>
+      <button onclick='util.download("all")'>Preview SVG</button>
     </div>
     <div id="steps-ui">
     </div>
@@ -335,7 +349,7 @@ const util = {
 
   download: function (which) {
     let a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([svgText(SVGbuilder.current, which)], {
+    a.href = URL.createObjectURL(new Blob([SVGbuilder.svgText(SVGbuilder.current, which)], {
       type: 'image/svg+xml'
     }));
     a.download = which + '.svg';
@@ -445,22 +459,63 @@ function newRuleGroup(id) {
   refresh();
 }
 
+function newRuleInGroup(sid) {
+  // add a new group, add a rule to it
+  const activeSet = config.activePipeline.ruleSets.find((el) => el.id == sid)
+  if (activeSet != null) {
+    let newGroup = new RuleGroup()
+    activeSet.addGroup(newGroup)
+  
+    newRule(sid, newGroup.id)
+  }
+}
+
 function stepUp(id) {
-  let i = config.activePipeline.ruleSets.findIndex((el) => el.id == id);
+  let i = config.activePipeline.generators.findIndex((el) => el.id == id);
   if (i > 0) {
-    let temp = config.activePipeline.ruleSets[i]
-    config.activePipeline.ruleSets[i] = config.activePipeline.ruleSets[i-1]
-    config.activePipeline.ruleSets[i-1] = temp
+    let temp = config.activePipeline.generators[i]
+    config.activePipeline.generators[i] = config.activePipeline.generators[i-1]
+    config.activePipeline.generators[i-1] = temp
+  } else {
+    let i = config.activePipeline.transforms.findIndex((el) => el.id == id);
+    if (i > 0) {
+      let temp = config.activePipeline.transforms[i]
+      config.activePipeline.transforms[i] = config.activePipeline.transforms[i-1]
+      config.activePipeline.transforms[i-1] = temp
+    } else {
+      
+      let i = config.activePipeline.ruleSets.findIndex((el) => el.id == id);
+      if (i > 0) {
+        let temp = config.activePipeline.ruleSets[i]
+        config.activePipeline.ruleSets[i] = config.activePipeline.ruleSets[i-1]
+        config.activePipeline.ruleSets[i-1] = temp
+      }
+    }
   }
   recalculate()
 }
 
 function stepDown(id) {
-  let i = config.activePipeline.ruleSets.findIndex((el) => el.id == id);
-  if (i < config.activePipeline.ruleSets.length) {
-    let temp = config.activePipeline.ruleSets[i]
-    config.activePipeline.ruleSets[i] = config.activePipeline.ruleSets[i+1]
-    config.activePipeline.ruleSets[i+1] = temp
+  let i = config.activePipeline.generators.findIndex((el) => el.id == id);
+  if (i > -1 && i < config.activePipeline.generators.length) {
+    let temp = config.activePipeline.generators[i]
+    config.activePipeline.generators[i] = config.activePipeline.generators[i+1]
+    config.activePipeline.generators[i+1] = temp
+  } else {
+    let i = config.activePipeline.transforms.findIndex((el) => el.id == id);
+    if (i > -1 && i < config.activePipeline.transforms.length) {
+      let temp = config.activePipeline.transforms[i]
+      config.activePipeline.transforms[i] = config.activePipeline.transforms[i+1]
+      config.activePipeline.transforms[i+1] = temp
+    } else {
+      
+      let i = config.activePipeline.ruleSets.findIndex((el) => el.id == id);
+      if (i > -1 && i < config.activePipeline.ruleSets.length) {
+        let temp = config.activePipeline.ruleSets[i]
+        config.activePipeline.ruleSets[i] = config.activePipeline.ruleSets[i+1]
+        config.activePipeline.ruleSets[i+1] = temp
+      }
+    }
   }
   recalculate()
 }
@@ -634,7 +689,7 @@ class Pipeline {
     let ui = ''
     ui = ui + '<div id="generators-ui" class="step-group">'
     for (let gen of this.generators) {
-      ui = ui + '<div class="step-container" id="' + gen.elementId + '-container">' + gen.renderInputs() + '</div>'
+      ui = ui + '<div class="step-container" id="' + gen.id + '-container">' + gen.renderInputs() + '</div>'
     }
 
     ui = ui + '<div class="add-step"><button onclick="newGenerator()">New generator</button></div></div>'
@@ -642,60 +697,55 @@ class Pipeline {
     
     ui = ui + '<div id="transforms-ui" class="step-group">'
     for (let xform of this.transforms) {
-      ui = ui + '<div class="step-container" id="' + xform.elementId + '-container">' + xform.renderInputs() + '</div>'
+      ui = ui + '<div class="step-container" id="' + xform.id + '-container">' + xform.renderInputs() + '</div ending="step-container">'
     }
     
-    ui = ui + '<button onclick="newTransform()">New </button><select id="new-xform-type">'
+    ui = ui + '<div class="add-step"><button onclick="newTransform()">New </button><select id="new-xform-type">'
     for (let mt of Transform.getModifierTypes()) {
       ui = ui + `<option value=${mt}>${mt}</option>`
     }
-    ui = ui + '</select></div>'
+    ui = ui + '</select></div></div>'
     
 
     ui = ui + '<div id="rules-ui" class="step-group">'
       
     
     for (let rs of this.ruleSets) {
-      ui = ui + `<div class="rule-set"><div class="colour-picker" id="${rs.id}-colour">`
+      ui = ui + '<div class="rule-set">' + rs.renderGenericInputs() + `<div class="colour-picker" id="${rs.id}-colour">`
 
       // colour picker
       let cols = ['black', 'red', 'green', 'blue', 'purple'];
       for (let i in cols) {
         let col = cols[i];
         ui = ui + `
-          <input type="radio" name="${rs.id}-colour" id="${rs.id}-colour-${col}" value="${col}" ${rs.colour == col ? 'checked' : ''}>
+          <input type="radio" onchange="formInputChangeHandler()" name="${rs.id}-colour" id="${rs.id}-colour-${col}" value="${col}" ${rs.colour == col ? 'checked' : ''}>
           <label for="${rs.id}-colour-${col}" style="--colour: ${col}"></label>
         `
       }
-
-      ui = ui + '</div><div class="step-buttons">'
-      ui = ui + '<button onclick="stepUp(\'' + rs.id + '\')">🔼</button>';
-      ui = ui + '<button onclick="stepDown(\'' + rs.id + '\')">🔽</button>';
-      ui = ui + '<button onclick="removeStepGlobal(\'' + rs.id + '\')">❎</button>';
       ui = ui + '</div>'
 
-      for (let rg of rs.ruleGroups) {
-        ui = ui + '<div class="rule-group">'
-        if (rg.rules.length > 1) {
-          ui = ui + '<p>Group'
-          ui = ui + '<button style="float: right;" onclick="removeStepGlobal(\'' + rg.id + '\')">X</button></p>'
+      if (rs.ruleGroups.length > 0) {
+        for (let rg of rs.ruleGroups) {
+          ui = ui + '<div class="rule-group">'
+          if (rg.rules.length > 1) {
+            ui = ui + `<p style="padding: 2px;">Group ${rg.id}<button class="step-button" style="float: right" onclick="removeStepGlobal(${rg.id})">❎</button></p>`
+          }
+          for (let r of rg.rules) {
+            ui = ui + '<div class="rule-element">' + r.renderInputs() + '</div ending="rule">'
+          }
+          ui = ui + `<div class="add-step"><button onclick="newRule(${rs.id}, ${rg.id})">New rule</button></div>`;
+          ui = ui + '</div ending="group">';
         }
-        for (let r of rg.rules) {
-          // TODO: generic X remove button here
-          ui = ui + '<div class="rule-element">' + r.renderInputs() + '</div ending="rule">'
-        }
-        ui = ui + `<button onclick="newRule(${rs.id}, ${rg.id})">New rule</button>`;
-        ui = ui + '</div ending="group">';
+
+        ui = ui + `<div class="add-step"><button onclick="newRuleGroup(${rs.id})">New group</button></div>`;
+      } else {
+        ui = ui + `<div class="add-step"><button onclick="newRuleInGroup(${rs.id})">New rule</button></div>`;
       }
 
-      ui = ui + `<button onclick="newRuleGroup(${rs.id})">New group</button><br />`;
-
       ui = ui + '</div ending="set">'
-
-      // ui = ui + '<div class="colour-block" style="background-color: ' + rs.colour + '"></div>'
     }
 
-    ui = ui + `<button onclick="newRuleSet()">New set</button><br />`;
+    ui = ui + `<div class="add-step"><button onclick="newRuleSet()">New set</button></div>`;
       
     ui = ui + '</div>'
 
@@ -730,8 +780,12 @@ class PipelineStep {
     console.log('Superclass getting inputs for ' + this.id)
   }
   renderGenericInputs(elementId) {
-    const clickHandler = "removeStepGlobal('" + this.id + "')"
-    return ''; // '<button onclick="' + clickHandler + '">X</button>';
+    let ui = `<div class="step-buttons">
+      <button onclick="stepUp(${this.id})">🔼</button>
+      <button onclick="stepDown(${this.id})">🔽</button>
+      <button onclick="removeStepGlobal(${this.id})">❎</button>
+      </div>`;
+    return ui;
   }
   setValues(v) {
   }
@@ -1206,7 +1260,7 @@ class Transform extends PipelineStep {
   }
 
   renderInputs() {
-    let ui = this.renderGenericInputs() + '<div class="parameter"><label>Xform</label><label>' + Transform.#modifiers[this.attribs.modifyType].humanName + '</label>'; // T\ODO: make this a select
+    let ui = this.renderGenericInputs() + '<div class="parameter"><label>Xform</label><label>' + Transform.#modifiers[this.attribs.modifyType].humanName + '</label></div>'; // T\ODO: make this a select
 
     for (let attribute in this.attribs) {
       if (typeof this.renderMap[attribute] !== 'undefined') {
@@ -1394,8 +1448,9 @@ class Rule extends PipelineStep {
   }
 
   renderInputs() {
-    let ui = this.renderGenericInputs(this.elementId);
+    // let ui = this.renderGenericInputs(this.elementId); // actually don't, simple X button is enough
 
+    let ui = `<button class="step-button" style="float: right" onclick="removeStepGlobal(${this.id})">❎</button>`
     for (let attribute in this.attribs) {
       if (typeof this.renderMap[attribute] !== 'undefined') {
         ui = ui + this.renderMap[attribute].call(this)
@@ -1420,17 +1475,35 @@ let pipe = new Pipeline;
 let defaultSet = new RuleSet();
 defaultSet.colour = 'black'
 
-/*
+
 let sqsqgen = new Generator('grid', 'square');
 
-sqsqgen.attribs.radius = 4
+sqsqgen.attribs.radius = 5
 sqsqgen.attribs.x_spacing = 10
 sqsqgen.attribs.y_spacing = 10
-sqsqgen.attribs.rows = 20
-sqsqgen.attribs.cols = 20
+sqsqgen.attribs.rows = 19
+sqsqgen.attribs.cols = 12
 
 pipe.generators.push(sqsqgen)
 
+let scalex = new Transform('Y', 'scale_x')
+scalex.attribs.min = 1
+scalex.attribs.max = 0
+
+let scaleall = new Transform('Y', 'scale')
+scaleall.attribs.min = 1
+scaleall.attribs.max = 1.4
+
+let rotwiggle = new Transform('Y', 'rotateinplace')
+rotwiggle.attribs.min = 0
+rotwiggle.attribs.max = 45
+rotwiggle.attribs.rndsign = true
+
+pipe.transforms.push(scalex)
+pipe.transforms.push(scaleall)
+pipe.transforms.push(rotwiggle)
+
+/*
 let smiletoprule = new Rule('Y', 'gt', 125)
 let smilebotrule = new Rule('radius', 'lt', 100)
 smilebotrule.centre_x = 100;
