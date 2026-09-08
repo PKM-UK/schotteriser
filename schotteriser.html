@@ -47,6 +47,21 @@ svg {
   height: 700px
 }
 
+/* Top UI */
+#pipeline-picker, #buttons-ui {
+  padding: 3px;
+}
+
+.pipeline-button, .action-button {
+  margin: 2px;
+  font-size: 14px;
+}
+
+.pipeline-button.current {
+  outline: 2px solid #333;
+  /* outline-offset: 2px; */
+}
+
 /* Generic step stuff */
 
 .rule-set, .rule-group, .step-group {
@@ -185,7 +200,8 @@ svg {
 
 }
 
-.add-step button, .add-step select {
+/* Should this just be a class called "action-button" or something? Neater CSS, messier HTML */
+.add-step button, .add-step select, #buttons-ui button, #pipeline-picker button {
     padding: 5px 10px;
     border: 1px solid #aaa;
     border-radius: 4px;
@@ -257,15 +273,17 @@ input::-webkit-inner-spin-button {
 <body>
   <div id="side">
     <h3>Parameters</h3>
-    <div id="pipeline-picker">
-      <button onclick="setActivePipeline(0)">1</button>
-      <button onclick="setActivePipeline(1)">2</button>
-      <button onclick="setActivePipeline(2)">3</button>
-      <button onclick="setActivePipeline(3)">4</button>
+    <div id="pipeline-picker">Pipeline:
+        <button class="pipeline-button current" onclick="setActivePipeline(0)">1</button>
+        <button class="pipeline-button" onclick="setActivePipeline(1)">2</button>
+        <button class="pipeline-button" onclick="setActivePipeline(2)">3</button>
+        <button class="pipeline-button" onclick="setActivePipeline(3)">4</button>
     </div>
     <div id="buttons-ui">
+      
       <button onclick='recalculate()'>Recalculate</button>
       <button onclick='util.download("all")'>Preview SVG</button>
+      
     </div>
     <div id="steps-ui">
     </div>
@@ -332,16 +350,6 @@ const util = {
 
     return Math.min(max, Math.max(min, x))
   },
-
-  clockDegrees: function(x, y) {
-    let ex, ey, shift;
-    if (x < 0 && y < 0) {
-      ex = 0-x;
-      ey = 0-y;
-      shift = 180;
-    }
-    return Math.atan(ex, ey) // bollox
-  },
   angleFromTop: function (x, y) {
     const angle = Math.atan2(x, -y) * 180 / Math.PI;
     return (angle + 360) % 360;
@@ -349,7 +357,7 @@ const util = {
 
   download: function (which) {
     let a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([SVGbuilder.svgText(SVGbuilder.current, which)], {
+    a.href = URL.createObjectURL(new Blob([SVGbuilder.svgText(which)], {
       type: 'image/svg+xml'
     }));
     a.download = which + '.svg';
@@ -422,6 +430,9 @@ function redrawSVG() {
 // Button handlers
 function setActivePipeline(index) {
   config.activePipeline = config.pipelines[index];
+  let butts = document.querySelectorAll('.pipeline-button');
+  butts.forEach((el) => el.classList.remove('current'));
+  butts[index].classList.add('current');
   refresh();
 }
 function removeStepGlobal(id) {
@@ -674,6 +685,11 @@ class Pipeline {
             if (this.ruleSets[s].ruleGroups[g].rules[r].id == elementId) {
               this.ruleSets[s].ruleGroups[g].rules.splice(r, 1);
               removed = true;
+
+              // Now tidy up empty groups
+              if (this.ruleSets[s].ruleGroups[g].rules.length == 0) {
+                this.ruleSets[s].ruleGroups.splice(g, 1);
+              }
               break;
             }
           }
