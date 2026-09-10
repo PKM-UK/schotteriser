@@ -43,8 +43,9 @@ body {
 
 svg {
   border: 1px solid #888;
-  width: 700px;
-  height: 700px
+  /* SVG mm dimensions * 3.5? TODO: do this at runtime if we want to be able to resize */
+  width: 875px;
+  height: 700px;
 }
 
 /* Top UI */
@@ -368,7 +369,7 @@ const util = {
 let config = {
   randomSeed: 1,
   doc: {
-    w: 200, h: 200
+    w: 250, h: 200
   },
   pipelines: [],
   activePipeline: null,
@@ -570,8 +571,10 @@ let SVGbuilder = {
   svgText: function (one) {
     const NS = "http://www.w3.org/2000/svg";
     let layers = this.getLayers();
+    let w = config.doc.w;
+    let h = config.doc.h;
     // TODO: de-Schlemiel this function
-    let s = `<svg xmlns="${NS}" viewBox="0 0 200 200" width="200mm" height="200mm"><rect width="200" height="200" fill="white"/>`; 
+    let s = `<svg xmlns="${NS}" viewBox="0 0 ${w} ${h}" width="${w}mm" height="${h}mm"><rect width="${w}" height="${h}" fill="white"/>`; 
     for (const n of (one == "all" ? Object.keys(layers) : [one])) {
       s += `<g stroke="${n}" fill="none" stroke-width="0.4">`; 
       for (const p of layers[n]) {
@@ -1098,18 +1101,27 @@ class ValueField {
       return attribs.max;
     },
     'X': function value(attribs, point) {
-      return attribs.rule ? point.x : attribs.min + ((attribs.max - attribs.min) * point.x / config.doc.w)
+      let scalar_progress = (point.x-attribs.min_bound)/(attribs.max_bound-attribs.min_bound)
+      return attribs.rule ? point.x : util.clamp(attribs.min, attribs.max, attribs.min + ((attribs.max - attribs.min) * scalar_progress))
     },
     'Y': function value(attribs, point) {
-      return attribs.rule ? point.y : attribs.min + ((attribs.max - attribs.min) * point.y / config.doc.h)
+      let scalar_progress = (point.y-attribs.min_bound)/(attribs.max_bound-attribs.min_bound)
+      return attribs.rule ? point.y : util.clamp(attribs.min, attribs.max, attribs.min + ((attribs.max - attribs.min) * scalar_progress))
     },
     'radius': function value(attribs, point) {
       let r = Math.hypot(point.x - attribs.centre_x, point.y - attribs.centre_y);
-      return attribs.rule ? r : util.clamp(attribs.min, attribs.max, attribs.min + (r / attribs.radius) * (attribs.max - attribs.min))
+      let scalar_progress = (r-attribs.min_bound)/(attribs.max_bound-attribs.min_bound)
+      return attribs.rule ? r : util.clamp(attribs.min, attribs.max, attribs.min + ((attribs.max - attribs.min) * scalar_progress))
     },
     'angle': function value(attribs, point) {
       let angle_degrees = util.angleFromTop(point.x - attribs.centre_x, point.y - attribs.centre_y);
+      let scalar_progress = (angle_degrees-attribs.min_bound)/(attribs.max_bound-attribs.min_bound)
       return attribs.rule ? angle_degrees : attribs.min + (attribs.max - attribs.min) * ((angle_degrees / 360))
+    },
+    'manhattan': function value(attribs, point) {
+      let r = Math.abs(point.x - attribs.centre_x) + Math.abs(point.y - attribs.centre_y)
+      let scalar_progress = (r-attribs.min_bound)/(attribs.max_bound-attribs.min_bound)
+      return attribs.rule ? r : util.clamp(attribs.min, attribs.max, attribs.min + ((attribs.max - attribs.min) * scalar_progress))      
     }
   }
 
@@ -1135,6 +1147,7 @@ class Transform extends PipelineStep {
     this.attribs.rndsign = false;
     this.attribs.steps = 0;
 
+    this.attributeChange('fieldType', field); // should do this more consistently
     this.attributeChange('modifyType', modify); // should do this more consistently
   }
 
@@ -1265,8 +1278,10 @@ class Transform extends PipelineStep {
       ui = ui + '</select></div>'
       return ui;
     },
-    'centre_x': function() {return ['radius', 'angle'].includes(this.attribs.fieldType) ? `<div class="parameter"><label>about</label><input onchange="formInputChangeHandler()" id=${this.id + '-centre_x'} type="number" value=${this.attribs.centre_x} />` : ''},  
-    'centre_y': function() {return ['radius', 'angle'].includes(this.attribs.fieldType) ? `, <input onchange="formInputChangeHandler()" id=${this.id + '-centre_y'} type="number" value=${this.attribs.centre_y} /></div>` : ''},  
+    'centre_x': function() {return ['manhattan', 'radius', 'angle'].includes(this.attribs.fieldType) ? `<div class="parameter"><label>about</label><div class="parameter-values"><input onchange="formInputChangeHandler()" id=${this.id + '-centre_x'} type="number" value=${this.attribs.centre_x} />` : ''},  
+    'centre_y': function() {return ['manhattan', 'radius', 'angle'].includes(this.attribs.fieldType) ? `, <input onchange="formInputChangeHandler()" id=${this.id + '-centre_y'} type="number" value=${this.attribs.centre_y} /></div></div>` : ''},  
+    'min_bound' : function() {return `<div class="parameter"><label>Between</label><input onchange="formInputChangeHandler()" id=${this.id + '-min_bound'} type="number" value=${this.attribs.min_bound} /></div>`},  
+    'max_bound' : function() {return `<div class="parameter"><label>and</label><input onchange="formInputChangeHandler()" id=${this.id + '-max_bound'} type="number" value=${this.attribs.max_bound} /></div>`},  
     'min' : function() {return `<div class="parameter"><label>From</label><input onchange="formInputChangeHandler()" id=${this.id + '-min'} type="number" value=${this.attribs.min} /></div>`},  
     'max' : function() {return `<div class="parameter"><label>To</label><input onchange="formInputChangeHandler()" id=${this.id + '-max'} type="number" value=${this.attribs.max} /></div>`}, 
     'rnd': function(){return ''}, // done separately
@@ -1305,7 +1320,7 @@ class Transform extends PipelineStep {
   attributeChange(attribute, newval) {
     // Special cases
     if (attribute == 'fieldType') {
-      if (['radius', 'angle'].includes(newval)) {
+      if (['manhattan', 'radius', 'angle'].includes(newval)) {
         if (typeof this.attribs.centre_x == 'undefined') {
           this.attribs.centre_x = 100
         }
@@ -1313,10 +1328,21 @@ class Transform extends PipelineStep {
           this.attribs.centre_y = 100
         }
       }
-      if (newval == 'radius') {
-        if (typeof this.attribs.radius == 'undefined') {
-          this.attribs.radius = 50
+      if (['manhattan', 'radius', 'manhattan'].includes(newval)) {
+        if (typeof this.attribs.min_bound == 'undefined') {
+          this.attribs.min_bound = 0
         }
+        if (typeof this.max_bound == 'undefined') {
+          this.attribs.max_bound = 100
+        }
+      }
+      if (['X', 'Y'].includes(newval)) {
+        if (typeof this.attribs.min_bound == 'undefined') {
+          this.attribs.min_bound = 0
+        }
+        if (typeof this.max_bound == 'undefined') {
+          this.attribs.max_bound = 200
+        }        
       }
     }
     if (attribute == 'modifyType') {
@@ -1423,7 +1449,7 @@ class Rule extends PipelineStep {
   attributeChange(attribute, newval) {
     // Special cases
     if (attribute == 'fieldType') {
-      if ( ['radius', 'angle'].includes(newval) && !( ['radius', 'angle'].includes(this.attribs.fieldType) ) ) {
+      if ( ['manhattan', 'radius', 'angle'].includes(newval) && !( ['manhattan', 'radius', 'angle'].includes(this.attribs.fieldType) ) ) {
         if (typeof this.attribs.centre_x == 'undefined') {
           this.attribs.centre_x = 100
         }
@@ -1431,7 +1457,7 @@ class Rule extends PipelineStep {
           this.attribs.centre_y = 100
         }
         // config.refreshTimer = window.setTimeout(refresh, 500);
-      } else if ( !(['radius', 'angle'].includes(newval)) && ['radius', 'angle'].includes(this.attribs.fieldType) ) {
+      } else if ( !(['manhattan', 'radius', 'angle'].includes(newval)) && ['manhattan', 'radius', 'angle'].includes(this.attribs.fieldType) ) {
         // TODO: this is dumb it isn't driven by changing the field type dropdown anyway... maybe that one should always autorefresh onchange
         // config.refreshTimer = window.setTimeout(refresh, 500);
       }
@@ -1459,8 +1485,8 @@ class Rule extends PipelineStep {
       return ui;
     },
     'bound': function() {return `<input onchange="formInputChangeHandler()" id='${this.id}-bound' type='number' value=${this.attribs.bound} />`},
-    'centre_x': function() {return ['radius', 'angle'].includes(this.attribs.fieldType) ? `<label>about <input onchange="formInputChangeHandler()" id=${this.id + '-centre_x'} type="number" value=${this.attribs.centre_x} />` : ''},  
-    'centre_y': function() {return ['radius', 'angle'].includes(this.attribs.fieldType) ? `, <input onchange="formInputChangeHandler()" id=${this.id + '-centre_y'} type="number" value=${this.attribs.centre_y} />` : ''},      
+    'centre_x': function() {return ['manhattan', 'radius', 'angle'].includes(this.attribs.fieldType) ? `<label>about <input onchange="formInputChangeHandler()" id=${this.id + '-centre_x'} type="number" value=${this.attribs.centre_x} />` : ''},  
+    'centre_y': function() {return ['manhattan', 'radius', 'angle'].includes(this.attribs.fieldType) ? `, <input onchange="formInputChangeHandler()" id=${this.id + '-centre_y'} type="number" value=${this.attribs.centre_y} />` : ''},      
   }
 
   renderInputs() {
@@ -1514,6 +1540,11 @@ let rotwiggle = new Transform('Y', 'rotateinplace')
 rotwiggle.attribs.min = 0
 rotwiggle.attribs.max = 45
 rotwiggle.attribs.rndsign = true
+
+for (xform of [scalex, scaleall, rotwiggle]) {
+  xform.attribs.min_bound = 20;
+  xform.attribs.max_bound = 180;
+}
 
 pipe.transforms.push(scalex)
 pipe.transforms.push(scaleall)
