@@ -283,7 +283,7 @@ input::-webkit-inner-spin-button {
     <div id="buttons-ui">
       
       <button onclick='recalculate()'>Recalculate</button>
-      <button onclick='util.download("all")'>Preview SVG</button>
+      <button onclick='util.download("all")'>Download SVG</button>
       
     </div>
     <div id="steps-ui">
@@ -332,18 +332,8 @@ const util = {
   },
 
   seededRand: function (salt) {
-    // Use seeded
-    // const seedgen = () => ((c.randomSeed + salt)*2**32)>>>0;
     const hashseed = this.cyrb128(config.randomSeed + salt) //  should have one seed per pipeline
     return this.sfc32(hashseed[0], hashseed[1], hashseed[2], hashseed[3]);
-  },
-
-  posfloor: function(n) {
-    if (n<0) {
-      return 0-(Math.floor(0-n))
-    } else {
-      return Math.floor(n)
-    }
   },
   clamp: function(a, b, x) {
     let min = Math.min(a, b)
@@ -412,10 +402,7 @@ function formInputChangeHandler() {
 }
 
 function updateSteps() {
-  // get pipelinestep setup from UI
-  // for (pipeline of config.pipelines) {
-    config.activePipeline.updateSteps()
-  // }
+  config.activePipeline.updateSteps()
 }
 
 function redrawUI() {
@@ -555,7 +542,6 @@ let SVGbuilder = {
     let outputLayers = {}
     for (pipeline of config.pipelines) {
       pipelineLayers = pipeline.getLayers()
-      // TODO: Checc this gets the keys right
       for (layer in pipelineLayers) {
         if (layer in outputLayers) {
           outputLayers[layer] = outputLayers[layer].concat(pipelineLayers[layer])
@@ -639,9 +625,6 @@ class Pipeline {
   }
 
   removeStep(elementId) {
-    // Remove from DOM
-    // document.getElementById(elementId + '-container').remove()
-
     let removed = false;
 
     // Remove from config
@@ -705,6 +688,7 @@ class Pipeline {
 
 
   buildUI() {
+    // TODO: suck less
     let ui = ''
     ui = ui + '<div id="generators-ui" class="step-group">'
     for (let gen of this.generators) {
@@ -786,8 +770,6 @@ class Pipeline {
       step.readInputs();
     }
   }
-
-  // Everything below NEW PIPELINESTEP FUNCTIONS should be here, bring in PipelineStep class definitions next
 }
 
 class PipelineStep {
@@ -823,8 +805,10 @@ class PipelineStep {
   }
 }
 
+/* Tidied this far */
+
 class Generator extends PipelineStep {
-  shape; // TODO: Ever used?
+  shape;
   attribs = {};
 
   // Call ctor with (Generator.patterns['grid'], Generator.shapes['hexagon']) or whatever
@@ -911,7 +895,7 @@ class Generator extends PipelineStep {
             g.push({
               centre: {
                 x, y
-              }, radius: this.attribs.radius, angle: 270, points: []
+              }, radius: this.attribs.radius, points: []
             })
           }
         }
@@ -929,7 +913,7 @@ class Generator extends PipelineStep {
             g.push({
               centre: {
                 x, y
-              }, radius: this.attribs.radius, angle: 270, points: []
+              }, radius: this.attribs.radius, points: []
             })
           }
         }
@@ -941,12 +925,12 @@ class Generator extends PipelineStep {
       generatePoints: function generatePoints() {
         let g = [];
         for (let row = 0; row < this.attribs.points; row++){ 
-          let x = this.attribs.origin_x + (Math.sin((row * 6.2832) / this.attribs.points) * this.attribs.patternradius), y = this.attribs.origin_y + (Math.cos((row * 6.2832) / this.attribs.points) * this.attribs.patternradius)
+          let x = this.attribs.origin_x + (Math.sin((row * 6.2832) / this.attribs.points) * this.attribs.patternradius), y = this.attribs.origin_y - (Math.cos((row * 6.2832) / this.attribs.points) * this.attribs.patternradius)
           // push a shape with a centre and radius to g
           g.push({
             centre: {
               x, y
-            }, radius: this.attribs.radius, angle: 270, points: []
+            }, radius: this.attribs.radius, points: []
           })
         }
         return g
@@ -993,6 +977,7 @@ class Generator extends PipelineStep {
       ui = ui + '</select></div>'
       return ui;
     },
+    // TODO: genericalise the plain <label><input> type
     'rows' : function() {return `<div class="parameter"><label>Rows</label><input onchange="formInputChangeHandler()" id=${this.id + '-rows'} type="number" value=${this.attribs.rows} /></div>`},
     'cols' : function() {return `<div class="parameter"><label>Cols</label><input onchange="formInputChangeHandler()" id=${this.id + '-cols'} type="number" value=${this.attribs.cols} /></div>`},
     'points' : function() {return `<div class="parameter"><label>Points</label><input onchange="formInputChangeHandler()" id=${this.id + '-points'} type="number" value=${this.attribs.points} /></div>`},
@@ -1011,10 +996,8 @@ class Generator extends PipelineStep {
       
 
   generateGeometry() {
-    let g = this.generatePoints(); // this binding
+    let g = this.generatePoints();
     for (const p of g) {
-      // for each shape in the geometry,
-      // populate a list of points
       p.points = [];
       this.shapefn(p)
     }
@@ -1022,6 +1005,7 @@ class Generator extends PipelineStep {
   }
 
   renderInputs() {
+    // TODO: render attribute about the shape if we do parametric polygons/stars/whatever
     let ui = this.renderGenericInputs() + this.renderMap['pattern'].call(this) + this.renderMap['shape'].call(this);
 
     let attribsToRender = this.attribsInPattern();
@@ -1056,8 +1040,6 @@ class Generator extends PipelineStep {
       this.generatePoints = Generator.patterns[newval].generatePoints;
       this.fillDefaultAttribs();
     }
-
-    
   }
 
   fillDefaultAttribs() {
@@ -1100,6 +1082,7 @@ class ValueField {
     'constant': function value(attribs, point) {
       return attribs.max;
     },
+    // TODO: template these, big DRY win
     'X': function value(attribs, point) {
       let scalar_progress = (point.x-attribs.min_bound)/(attribs.max_bound-attribs.min_bound)
       return attribs.rule ? point.x : util.clamp(attribs.min, attribs.max, attribs.min + ((attribs.max - attribs.min) * scalar_progress))
@@ -1147,8 +1130,8 @@ class Transform extends PipelineStep {
     this.attribs.rndsign = false;
     this.attribs.steps = 0;
 
-    this.attributeChange('fieldType', field); // should do this more consistently
-    this.attributeChange('modifyType', modify); // should do this more consistently
+    this.attributeChange('fieldType', field);
+    this.attributeChange('modifyType', modify);
   }
 
   static #modifiers = {
@@ -1175,6 +1158,17 @@ class Transform extends PipelineStep {
           let dx = shape.centre.x - p.x
           dx = dx * scalar
           p.x = shape.centre.x - dx
+        }
+      }
+    },
+    'scale_y': {
+      humanName: "Scale height",
+      modify: function (shape, scalar) {
+        // scale shape's points based on scalar
+        for (let p of shape.points) {
+          let dy = shape.centre.y - p.y
+          dy = dy * scalar
+          p.y = shape.centre.x - dy
         }
       }
     },
@@ -1252,11 +1246,12 @@ class Transform extends PipelineStep {
     let p = (Math.abs(value) - this.attribs.min) / (this.attribs.max - this.attribs.min) // Normalise to 0 to 1 - gives us 0.4
     p = p * this.attribs.steps                                 // Normalise to 0 to steps - gives us 1.2
     p = Math.floor(p)                                          // Round down 0, 1, ... (steps - 1) - gives us 1. If we're doing bidirectional values as well, treat -1.5 as 1.5, floor to 1, re-negate to -1.
+    if (value == this.attribs.max) p = p-1;                    // Edge case: with 2 steps 0-0.999 is step 1, 1-1.999 is step 2 - but 2 shouldn't be step 3
     p = p / (this.attribs.steps - 1)                           // Normalise back to [0,1) - gives us 0.5 as we're on middle step
     p = p * (this.attribs.max - this.attribs.min)                      // Normalise back to range extent - gives us 2.5
     p = p + this.attribs.min                                   // Move back up to actual range min-max - gives us 7.5
 
-    return (value < 0 ? 0-p : p);
+    return (value < 0 ? 0-p : p);                              // Return with the right sign
   }  
 
   value(point) {
@@ -1328,7 +1323,7 @@ class Transform extends PipelineStep {
           this.attribs.centre_y = 100
         }
       }
-      if (['manhattan', 'radius', 'manhattan'].includes(newval)) {
+      if (['manhattan', 'radius', 'angle'].includes(newval)) {
         if (typeof this.attribs.min_bound == 'undefined') {
           this.attribs.min_bound = 0
         }
@@ -1349,15 +1344,12 @@ class Transform extends PipelineStep {
       if (newval == 'rotateinplace') {
         this.attribs.min = 0;
         this.attribs.max = 90;
-        this.attribs.baseValue = 0;
-      } else if (newval == 'scale') {
+      } else if (['scale','scale_x','scale_y'].includes(newval)) {
         this.attribs.min = 1;
         this.attribs.max = 2;
-        this.attribs.baseValue = 1;
       } else {
         this.attribs.min = 0;
         this.attribs.max = 10;
-        this.attribs.baseValue = 0; 
       }
     }
 
@@ -1404,8 +1396,6 @@ const RuleSet = class extends PipelineStep {
   }
 
   readInputs() {
-    // Pretty simple
-    // this.colour = this.readInput('colour')
     this.colour = document.querySelector('input[name="' + this.id + '-colour"]:checked').value;
   }
 }
@@ -1440,8 +1430,7 @@ class Rule extends PipelineStep {
   }
 
   classify(shape) {
-    // TODO: this is wrong, I want the position as a scalar
-    // Need "one to one" fields ie mapping X from 0 to doc.width, etc.
+    // attribs.rule means we get the plain value of the field without any clamping or lerping
     let pv = ValueField.fieldfn(this.attribs.fieldType)(this.attribs, shape.centre)
     return (this.attribs.operator == 'gt' ? pv > this.attribs.bound : pv < this.attribs.bound)
   }
@@ -1456,10 +1445,6 @@ class Rule extends PipelineStep {
         if (typeof this.attribs.centre_y == 'undefined') {
           this.attribs.centre_y = 100
         }
-        // config.refreshTimer = window.setTimeout(refresh, 500);
-      } else if ( !(['manhattan', 'radius', 'angle'].includes(newval)) && ['manhattan', 'radius', 'angle'].includes(this.attribs.fieldType) ) {
-        // TODO: this is dumb it isn't driven by changing the field type dropdown anyway... maybe that one should always autorefresh onchange
-        // config.refreshTimer = window.setTimeout(refresh, 500);
       }
     }
 
@@ -1490,8 +1475,7 @@ class Rule extends PipelineStep {
   }
 
   renderInputs() {
-    // let ui = this.renderGenericInputs(this.elementId); // actually don't, simple X button is enough
-
+    // no up and down button for rules because order doesn't matter
     let ui = `<button class="step-button" style="float: right" onclick="removeStepGlobal(${this.id})">❎</button>`
     for (let attribute in this.attribs) {
       if (typeof this.renderMap[attribute] !== 'undefined') {
@@ -1550,38 +1534,6 @@ pipe.transforms.push(scalex)
 pipe.transforms.push(scaleall)
 pipe.transforms.push(rotwiggle)
 
-/*
-let smiletoprule = new Rule('Y', 'gt', 125)
-let smilebotrule = new Rule('radius', 'lt', 100)
-smilebotrule.centre_x = 100;
-smilebotrule.centre_y = 100;
-
-let smilegroup = new RuleGroup()
-smilegroup.addRule(smiletoprule)
-smilegroup.addRule(smilebotrule)
-let smileset = new RuleSet();
-smileset.colour = 'red'
-smileset.addGroup(smilegroup)
-
-let leyerule = new Rule('radius', 'lt', 50)
-leyerule.attribs.centre_x = 50;
-leyerule.attribs.centre_y = 50;
-
-let reyerule = new Rule('radius', 'lt', 50)
-reyerule.attribs.centre_x = 150;
-reyerule.attribs.centre_y = 50;
-
-let leyegroup = new RuleGroup()
-leyegroup.addRule(leyerule)
-let reyegroup = new RuleGroup()
-reyegroup.addRule(reyerule)
-let eyeset = new RuleSet()
-eyeset.colour = 'green'
-eyeset.addGroup(leyegroup)
-eyeset.addGroup(reyegroup)
-
-pipe.ruleSets.push(smileset)
-pipe.ruleSets.push(eyeset) */
 
 pipe.ruleSets.push(defaultSet)
 config.pipelines.push(pipe)
@@ -1593,23 +1545,6 @@ for (let i=0; i<3; i++) {
 }
 
 refresh()
-
-// Whats the hierarchy of rules?
-// Ruleset
-//  Rulegroup
-//   Rule
-
-// What is a pipeinestep? What do we ask to get its inputs and generate UI?
-// Ruleset can delegate build/get to childen
-// Everything should have an id and a delete button so everything is a step
-// groups and rules notify their parent, so ctor takes a this pointer
-
-// Where do the field functions go?
-// Generators and Transforms will both want access to them 
-// and they're not really instance things so can probs be global
-
-
-
 </script>
 </body>    
 
