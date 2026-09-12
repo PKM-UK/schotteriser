@@ -78,7 +78,7 @@ svg {
 }
 
 .rule-element {
-  padding: 1px 0px;
+  padding: 2px 0px;
 }
 
 .colour-block {
@@ -283,7 +283,8 @@ input::-webkit-inner-spin-button {
     <div id="buttons-ui">
       
       <button onclick='recalculate()'>Recalculate</button>
-      <button onclick='util.download("all")'>Download SVG</button>
+      <button onclick='util.downloadSelected()'>Download SVG</button>
+      <div id="colour-selector"></div>
       
     </div>
     <div id="steps-ui">
@@ -354,6 +355,11 @@ const util = {
     a.download = which + '.svg';
     a.click();
   },
+
+  downloadSelected: function() {
+    let which = document.getElementById('colour-select').value;
+    util.download(which)
+  }
 }
 
 let config = {
@@ -361,6 +367,7 @@ let config = {
   doc: {
     w: 250, h: 200
   },
+  colours: ['black', 'red', 'green', 'blue', 'purple'],
   pipelines: [],
   activePipeline: null,
   changeTimer: 0,
@@ -717,7 +724,7 @@ class Pipeline {
       ui = ui + '<div class="rule-set">' + rs.renderGenericInputs() + `<div class="colour-picker" id="${rs.id}-colour">`
 
       // colour picker
-      let cols = ['black', 'red', 'green', 'blue', 'purple'];
+      let cols = config.colours;
       for (let i in cols) {
         let col = cols[i];
         ui = ui + `
@@ -1082,6 +1089,7 @@ class ValueField {
     'constant': function value(attribs, point) {
       return attribs.max;
     },
+    // TODO: deal with /0 if min_bound == max_bound
     // TODO: template these, big DRY win
     'X': function value(attribs, point) {
       let scalar_progress = (point.x-attribs.min_bound)/(attribs.max_bound-attribs.min_bound)
@@ -1246,7 +1254,7 @@ class Transform extends PipelineStep {
     let p = (Math.abs(value) - this.attribs.min) / (this.attribs.max - this.attribs.min) // Normalise to 0 to 1 - gives us 0.4
     p = p * this.attribs.steps                                 // Normalise to 0 to steps - gives us 1.2
     p = Math.floor(p)                                          // Round down 0, 1, ... (steps - 1) - gives us 1. If we're doing bidirectional values as well, treat -1.5 as 1.5, floor to 1, re-negate to -1.
-    if (value == this.attribs.max) p = p-1;                    // Edge case: with 2 steps 0-0.999 is step 1, 1-1.999 is step 2 - but 2 shouldn't be step 3
+    if (Math.abs(value) >= this.attribs.max) p = p-1;                    // Edge case: with 2 steps 0-0.999 is step 1, 1-1.999 is step 2 - but 2 shouldn't be step 3
     p = p / (this.attribs.steps - 1)                           // Normalise back to [0,1) - gives us 0.5 as we're on middle step
     p = p * (this.attribs.max - this.attribs.min)                      // Normalise back to range extent - gives us 2.5
     p = p + this.attribs.min                                   // Move back up to actual range min-max - gives us 7.5
@@ -1275,9 +1283,9 @@ class Transform extends PipelineStep {
     },
     'centre_x': function() {return ['manhattan', 'radius', 'angle'].includes(this.attribs.fieldType) ? `<div class="parameter"><label>about</label><div class="parameter-values"><input onchange="formInputChangeHandler()" id=${this.id + '-centre_x'} type="number" value=${this.attribs.centre_x} />` : ''},  
     'centre_y': function() {return ['manhattan', 'radius', 'angle'].includes(this.attribs.fieldType) ? `, <input onchange="formInputChangeHandler()" id=${this.id + '-centre_y'} type="number" value=${this.attribs.centre_y} /></div></div>` : ''},  
-    'min_bound' : function() {return `<div class="parameter"><label>Between</label><input onchange="formInputChangeHandler()" id=${this.id + '-min_bound'} type="number" value=${this.attribs.min_bound} /></div>`},  
-    'max_bound' : function() {return `<div class="parameter"><label>and</label><input onchange="formInputChangeHandler()" id=${this.id + '-max_bound'} type="number" value=${this.attribs.max_bound} /></div>`},  
-    'min' : function() {return `<div class="parameter"><label>From</label><input onchange="formInputChangeHandler()" id=${this.id + '-min'} type="number" value=${this.attribs.min} /></div>`},  
+    'min_bound' : function() {return (this.attribs.fieldType != 'constant') ? `<div class="parameter"><label>Between</label><input onchange="formInputChangeHandler()" id=${this.id + '-min_bound'} type="number" value=${this.attribs.min_bound} /></div>` : ''},  
+    'max_bound' : function() {return (this.attribs.fieldType != 'constant') ? `<div class="parameter"><label>and</label><input onchange="formInputChangeHandler()" id=${this.id + '-max_bound'} type="number" value=${this.attribs.max_bound} /></div>` : ''},  
+    'min' : function() {return (this.attribs.fieldType != 'constant') ? `<div class="parameter"><label>From</label><input onchange="formInputChangeHandler()" id=${this.id + '-min'} type="number" value=${this.attribs.min} /></div>` : ''},  
     'max' : function() {return `<div class="parameter"><label>To</label><input onchange="formInputChangeHandler()" id=${this.id + '-max'} type="number" value=${this.attribs.max} /></div>`}, 
     'rnd': function(){return ''}, // done separately
     'rndsign': function(){return ''}, // done separately
@@ -1543,6 +1551,14 @@ for (let i=0; i<3; i++) {
   newpipe.ruleSets.push(new RuleSet())
   config.pipelines.push(newpipe)
 }
+
+// Populate initial UI
+let selectorui = '<select id="colour-select"><option value="all" selected>All</option>';
+for (let col of config.colours) {
+  selectorui = selectorui + `<option value="${col}">${col}</option>`;
+}
+selectorui = selectorui + '</select>'
+document.getElementById('colour-selector').innerHTML = selectorui;
 
 refresh()
 </script>
