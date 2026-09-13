@@ -1249,17 +1249,18 @@ class Transform extends PipelineStep {
   // Put value into one of n equally likely buckets between min and max inclusive
   discretise(value) {
     if (this.attribs.steps == 0) return value;
-    if (this.attribs.max == this.attribs.min) return this.attribs.min; // guard against /0
-    // Do the whole thing on abs(value)                        // Lets pretend min = 5, max = 10 and steps = 3, p = 7
-    let p = (Math.abs(value) - this.attribs.min) / (this.attribs.max - this.attribs.min) // Normalise to 0 to 1 - gives us 0.4
-    p = p * this.attribs.steps                                 // Normalise to 0 to steps - gives us 1.2
-    p = Math.floor(p)                                          // Round down 0, 1, ... (steps - 1) - gives us 1. If we're doing bidirectional values as well, treat -1.5 as 1.5, floor to 1, re-negate to -1.
-    if (Math.abs(value) >= this.attribs.max) p = p-1;                    // Edge case: with 2 steps 0-0.999 is step 1, 1-1.999 is step 2 - but 2 shouldn't be step 3
-    p = p / (this.attribs.steps - 1)                           // Normalise back to [0,1) - gives us 0.5 as we're on middle step
-    p = p * (this.attribs.max - this.attribs.min)                      // Normalise back to range extent - gives us 2.5
-    p = p + this.attribs.min                                   // Move back up to actual range min-max - gives us 7.5
+    if (this.attribs.max == this.attribs.min) return this.attribs.min;  // guard against /0
+                                                                        // Lets pretend min = 5, max = 10 and steps = 3, p = 7
+    let p = (value - this.attribs.min) / (this.attribs.max - this.attribs.min) // Normalise to [0-1] - gives us 0.4
+    if (p>=1) p = 0.9999;                                               // Bound to [0,1) because if it's >1 or <0 it will overflow
+    if (p<0) p = 0;
+    p = p * this.attribs.steps                                          // Normalise to 0 to steps - gives us 1.2
+    p = Math.trunc(p)                                                   // Round towards zero so negative effects work symmetrically with positive ones
+    p = p / (this.attribs.steps - 1)                                    // Normalise back to [0,1) - gives us 0.5 as we're on middle step
+    p = p * (this.attribs.max - this.attribs.min)                       // Normalise back to range extent - gives us 2.5
+    p = p + this.attribs.min                                            // Move back up to actual range min-max - gives us 7.5
 
-    return (value < 0 ? 0-p : p);                              // Return with the right sign
+    return p;                                              // Return with the right sign
   }  
 
   value(point) {
@@ -1517,6 +1518,7 @@ sqsqgen.attribs.x_spacing = 10
 sqsqgen.attribs.y_spacing = 10
 sqsqgen.attribs.rows = 19
 sqsqgen.attribs.cols = 12
+sqsqgen.attribs.origin_y = 100
 
 pipe.generators.push(sqsqgen)
 
@@ -1541,7 +1543,6 @@ for (xform of [scalex, scaleall, rotwiggle]) {
 pipe.transforms.push(scalex)
 pipe.transforms.push(scaleall)
 pipe.transforms.push(rotwiggle)
-
 
 pipe.ruleSets.push(defaultSet)
 config.pipelines.push(pipe)
