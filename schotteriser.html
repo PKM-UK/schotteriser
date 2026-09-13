@@ -1176,7 +1176,7 @@ class Transform extends PipelineStep {
         for (let p of shape.points) {
           let dy = shape.centre.y - p.y
           dy = dy * scalar
-          p.y = shape.centre.x - dy
+          p.y = shape.centre.y - dy
         }
       }
     },
@@ -1518,7 +1518,6 @@ sqsqgen.attribs.x_spacing = 10
 sqsqgen.attribs.y_spacing = 10
 sqsqgen.attribs.rows = 19
 sqsqgen.attribs.cols = 12
-sqsqgen.attribs.origin_y = 100
 
 pipe.generators.push(sqsqgen)
 
