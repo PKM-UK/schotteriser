@@ -571,12 +571,25 @@ let SVGbuilder = {
     for (const n of (one == "all" ? Object.keys(layers) : [one])) {
       s += `<g stroke="${n}" fill="none" stroke-width="0.4">`; 
       for (const p of layers[n]) {
-        s += `<path d="${this.pathD(p)}"/>`;
+        if (!this.prune(p)) {
+          s += `<path d="${this.pathD(p)}"/>`;
+        }
       }
       s += '</g>';
     }
     return s + '</svg>';
   }, 
+
+  prune: function(s) {
+    // Return true if we don't want to draw the shape: if all its points are coincident, or it's outside the canvas boundary
+    let firstpoint = s.points[0]
+    let coincident = true;
+    for (let p of s.points) {
+      if (p.x > config.doc.w || p.x < 0 || p.y > config.doc.h || p.y < 0) return true;
+      if (p.x != firstpoint.x || p.y != firstpoint.y) coincident = false;
+    }
+    return coincident;
+  }
 }
 
 class Pipeline {
@@ -829,65 +842,114 @@ class Generator extends PipelineStep {
     this.attributeChange('shape', shape)
   }
   static shapes = {
-    'hexagon': function(p) {
-      for (let i = 0; i < 6; i++) {
-        let a = (60 * i - 30) * Math.PI / 180;
-        let rr = p.radius;
-        p.points.push({
-          x: p.centre.x + rr * Math.cos(a), y: p.centre.y + rr * Math.sin(a)
-        })
-        p.close = true;
+    'polygon': 
+    {
+      attribs: {
+        'shapesides': 6
+      },
+      renderInput: function() {return `<div class="parameter"><label>Sides</label><input onchange="formInputChangeHandler()" id=${this.id + '-shapesides'} type="number" value=${this.attribs.shapesides} /></div>`},
+      draw: function(p) {
+        for (let i = 0; i < this.attribs.shapesides; i++) {
+          let a = ((360 / this.attribs.shapesides) * (i - 0.5)) * Math.PI / 180;
+          let rr = p.radius;
+          p.points.push({
+            x: p.centre.x + rr * Math.cos(a), y: p.centre.y + rr * Math.sin(a)
+          })
+          p.close = true;
+        }
       }
     },
-    'square': function(p) {
-      let rr = p.radius;
-      for (let corner = 0; corner < 4; corner++) {
-        p.points.push({
-          x: p.centre.x + rr * (corner == 0 || corner == 3 ? 1 : -1), y: p.centre.y + rr * (corner < 2 ? 1 : -1)
-        }) 
-        p.close = true;
+    'star': 
+    {
+      attribs: {
+        'shapesides': 6
+      },
+      renderInput: function() {return `<div class="parameter"><label>Sides</label><input onchange="formInputChangeHandler()" id=${this.id + '-shapesides'} type="number" value=${this.attribs.shapesides} /></div>`},
+      draw: function(p) {
+        for (let i = 0; i < this.attribs.shapesides*2; i++) {
+          let a = ((360 / (this.attribs.shapesides * 2)) * (i - 0.5)) * Math.PI / 180;
+          let rr = (i % 2 == 0 ? p.radius : p.radius * 0.5); // minor radius ratio
+          p.points.push({
+            x: p.centre.x + rr * Math.cos(a), y: p.centre.y + rr * Math.sin(a)
+          })
+          p.close = true;
+        }
       }
-    },
-    'arrow': function(p) {
-      p.points = [{x: p.centre.x, y: p.centre.y + p.radius}, 
-                  {x: p.centre.x, y: p.centre.y - p.radius}, 
-                  {x: p.centre.x + p.radius/2, y: p.centre.y - p.radius / 2}, 
-                  {x: p.centre.x - p.radius/2, y: p.centre.y - p.radius / 2},
-                  {x: p.centre.x, y: p.centre.y - p.radius}];
-      p.close = false;
-    },
-    'line': function(p) {
-      p.points = [{x: p.centre.x, y: p.centre.y + p.radius}, 
-                  {x: p.centre.x, y: p.centre.y - p.radius}];
-                  p.close = false;
-    },
-    'circle': function(p) {
-      let count = 20;
-      for (let c=0; c<count; c++) {
-        p.points.push({
-          x: p.centre.x + (p.radius * Math.sin(c * 6.2832 / count )),  y:p.centre.y + (p.radius * Math.cos(c * 6.2832 / count))
-        }) 
-      }
-      p.close = true;
-    },
-    'arc': function(p) {
-      let count = 20;
-      let sides = Math.ceil((p.angle * 20) / 360);
-      for (let c=0; c<sides; c++) {
-        p.points.push({
-          x: p.centre.x + (p.radius * Math.sin(c * 6.2832 / count )),  y:p.centre.y + (p.radius * Math.cos(c * 6.2832 / count))
-        }) 
-      }
-      p.close = false;
-    },
-    'heart': function(p) {
-      const shapepoints = [[0, -0.5], [0.5, -1], [1, -1], [1.5, -0.5], [1.5, 0], [0, 1.5], [-1.5, 0], [-1.5, -0.5], [-1, -1], [-0.5, -1]];
-      for (let sp of shapepoints) {
-        p.points.push({x: p.centre.x + sp[0] * p.radius, y: p.centre.y + sp[1] * p.radius})
-      }
-      p.close = true;
     },    
-
+    'square': {
+      attribs: null,
+      renderInput: null,
+      draw: function(p) { 
+        let rr = p.radius;
+        for (let corner = 0; corner < 4; corner++) {
+          p.points.push({
+            x: p.centre.x + rr * (corner == 0 || corner == 3 ? 1 : -1), y: p.centre.y + rr * (corner < 2 ? 1 : -1)
+          }) 
+          p.close = true;
+        }
+      }
+    },
+    'arrow': {
+      attribs: null,
+      renderInput: null,
+      draw: function(p) {
+        p.points = [{x: p.centre.x, y: p.centre.y + p.radius}, 
+                    {x: p.centre.x, y: p.centre.y - p.radius}, 
+                    {x: p.centre.x + p.radius/2, y: p.centre.y - p.radius / 2}, 
+                    {x: p.centre.x - p.radius/2, y: p.centre.y - p.radius / 2},
+                    {x: p.centre.x, y: p.centre.y - p.radius}];
+        p.close = false;
+      }
+    },
+    'line': {
+      attribs: null,
+      renderInput: null,
+      draw: function(p) {
+        p.points = [{x: p.centre.x, y: p.centre.y + p.radius}, 
+                    {x: p.centre.x, y: p.centre.y - p.radius}];
+                    p.close = false;
+      }
+    },
+    'circle': {
+      attribs: null,
+      renderInput: null,
+      draw: function(p) {
+        let count = 20;
+        for (let c=0; c<count; c++) {
+          p.points.push({
+            x: p.centre.x + (p.radius * Math.sin(c * 6.2832 / count )),  y:p.centre.y + (p.radius * Math.cos(c * 6.2832 / count))
+          }) 
+        }
+        p.close = true;
+      }
+    },
+    'arc': {
+      attribs: {
+        'shapeangle': 270
+      },
+      renderInput: function() {return `<div class="parameter"><label>Angle</label><input onchange="formInputChangeHandler()" id=${this.id + '-shapeangle'} type="number" value=${this.attribs.shapeangle} /></div>`},
+      draw: function(p) {
+        let count = 20;
+        let sides = Math.ceil((this.attribs.shapeangle * 20) / 360);
+        for (let c=0; c<sides; c++) {
+          p.points.push({
+            x: p.centre.x + (p.radius * Math.sin(c * 6.2832 / count )),  y:p.centre.y + (p.radius * Math.cos(c * 6.2832 / count))
+          }) 
+        }
+        p.close = false;
+      }
+    },
+    'heart': {
+      attribs: null,
+      renderInput: null,
+      draw: function(p) {
+        const shapepoints = [[0, -0.5], [0.5, -1], [1, -1], [1.5, -0.5], [1.5, 0], [0, 1.5], [-1.5, 0], [-1.5, -0.5], [-1, -1], [-0.5, -1]];
+        for (let sp of shapepoints) {
+          p.points.push({x: p.centre.x + sp[0] * p.radius, y: p.centre.y + sp[1] * p.radius})
+        }
+        p.close = true;
+      }
+    },
   }  
 
   static patterns = {
@@ -1015,6 +1077,10 @@ class Generator extends PipelineStep {
     // TODO: render attribute about the shape if we do parametric polygons/stars/whatever
     let ui = this.renderGenericInputs() + this.renderMap['pattern'].call(this) + this.renderMap['shape'].call(this);
 
+    if (Generator.shapes[this.attribs.shape].attribs != null) {
+      ui = ui + Generator.shapes[this.attribs.shape].renderInput.call(this);
+    }
+
     let attribsToRender = this.attribsInPattern();
     for (let attribute in this.attribs) {
       if (attribsToRender.includes(attribute) && typeof this.renderMap[attribute] !== 'undefined') {
@@ -1041,7 +1107,13 @@ class Generator extends PipelineStep {
 
     // Special cases
     if (attribute == 'shape') {
-      this.shapefn = Generator.shapes[newval]
+      this.shapefn = Generator.shapes[newval].draw;
+      if (Generator.shapes[newval].attribs != null) {
+        // add shape attribs to this.attribs if not already present, fill ssensible default
+        for (let shapeAttrib in Generator.shapes[newval].attribs) {
+          this.fillUndefinedAttrib(shapeAttrib, Generator.shapes[newval].attribs[shapeAttrib])
+        }
+      }
     }
     if (attribute == 'pattern') {
       this.generatePoints = Generator.patterns[newval].generatePoints;
@@ -1286,7 +1358,7 @@ class Transform extends PipelineStep {
     'centre_y': function() {return ['manhattan', 'radius', 'angle'].includes(this.attribs.fieldType) ? `, <input onchange="formInputChangeHandler()" id=${this.id + '-centre_y'} type="number" value=${this.attribs.centre_y} /></div></div>` : ''},  
     'min_bound' : function() {return (this.attribs.fieldType != 'constant') ? `<div class="parameter"><label>Between</label><input onchange="formInputChangeHandler()" id=${this.id + '-min_bound'} type="number" value=${this.attribs.min_bound} /></div>` : ''},  
     'max_bound' : function() {return (this.attribs.fieldType != 'constant') ? `<div class="parameter"><label>and</label><input onchange="formInputChangeHandler()" id=${this.id + '-max_bound'} type="number" value=${this.attribs.max_bound} /></div>` : ''},  
-    'min' : function() {return (this.attribs.fieldType != 'constant') ? `<div class="parameter"><label>From</label><input onchange="formInputChangeHandler()" id=${this.id + '-min'} type="number" value=${this.attribs.min} /></div>` : ''},  
+    'min' : function() {return (this.attribs.fieldType != 'constant' || (this.attribs.rnd || this.attribs.rndsign)) ? `<div class="parameter"><label>From</label><input onchange="formInputChangeHandler()" id=${this.id + '-min'} type="number" value=${this.attribs.min} /></div>` : ''},  
     'max' : function() {return `<div class="parameter"><label>To</label><input onchange="formInputChangeHandler()" id=${this.id + '-max'} type="number" value=${this.attribs.max} /></div>`}, 
     'rnd': function(){return ''}, // done separately
     'rndsign': function(){return ''}, // done separately
