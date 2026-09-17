@@ -867,10 +867,10 @@ class Generator extends PipelineStep {
       renderInput: function() {return `<div class="parameter"><label>Sides</label><input onchange="formInputChangeHandler()" id=${this.id + '-shapesides'} type="number" value=${this.attribs.shapesides} /></div>`},
       draw: function(p) {
         for (let i = 0; i < this.attribs.shapesides*2; i++) {
-          let a = ((360 / (this.attribs.shapesides * 2)) * (i - 0.5)) * Math.PI / 180;
+          let a = ((360 / (this.attribs.shapesides * 2)) * i) * Math.PI / 180;
           let rr = (i % 2 == 0 ? p.radius : p.radius * 0.5); // minor radius ratio
           p.points.push({
-            x: p.centre.x + rr * Math.cos(a), y: p.centre.y + rr * Math.sin(a)
+            x: p.centre.x + rr * Math.sin(a), y: p.centre.y - rr * Math.cos(a)
           })
           p.close = true;
         }
@@ -1583,19 +1583,16 @@ let defaultSet = new RuleSet();
 defaultSet.colour = 'black'
 
 
-let sqsqgen = new Generator('grid', 'square');
+let gen = new Generator('grid', 'star');
 
-sqsqgen.attribs.radius = 5
-sqsqgen.attribs.x_spacing = 10
-sqsqgen.attribs.y_spacing = 10
-sqsqgen.attribs.rows = 19
-sqsqgen.attribs.cols = 12
+gen.attribs.radius = 5
+gen.attribs.x_spacing = 10
+gen.attribs.y_spacing = 10
+gen.attribs.rows = 19
+gen.attribs.cols = 12
+gen.attribs.shapesides = 4
 
-pipe.generators.push(sqsqgen)
-
-let scalex = new Transform('Y', 'scale_x')
-scalex.attribs.min = 1
-scalex.attribs.max = 0
+pipe.generators.push(gen)
 
 let scaleall = new Transform('Y', 'scale')
 scaleall.attribs.min = 1
@@ -1604,14 +1601,12 @@ scaleall.attribs.max = 1.4
 let rotwiggle = new Transform('Y', 'rotateinplace')
 rotwiggle.attribs.min = 0
 rotwiggle.attribs.max = 45
-rotwiggle.attribs.rndsign = true
 
-for (xform of [scalex, scaleall, rotwiggle]) {
+for (xform of [scaleall, rotwiggle]) {
   xform.attribs.min_bound = 20;
   xform.attribs.max_bound = 180;
 }
 
-pipe.transforms.push(scalex)
 pipe.transforms.push(scaleall)
 pipe.transforms.push(rotwiggle)
 
