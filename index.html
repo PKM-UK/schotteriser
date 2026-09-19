@@ -216,6 +216,11 @@ svg {
   padding: 5px;
 }
 
+.add-step input {
+  padding: 5px;
+  width: 5em;
+}
+
 .add-step button:hover {
     background: #deded9;
 }
@@ -440,14 +445,21 @@ function removeStepGlobal(id) {
 }
 
 function newGenerator() {
-  let newGen = new Generator(Generator.patterns[0])
+  const pastedJSON = document.getElementById('newGenJSON').value;
+  let newGen = pastedJSON ? Generator.fromJSON(pastedJSON) : new Generator(Generator.patterns[0]);
   config.activePipeline.generators.push(newGen)
   refresh(); 
 }
 
 function newTransform() {
-  let type = document.getElementById('new-xform-type').value;
-  let newTrans = new Transform('X', type)
+  let newTrans;
+  const pastedJSON = document.getElementById('newTransformJSON').value;
+  if (pastedJSON) {
+    newTrans = Transform.fromJSON(pastedJSON);
+  } else {
+    const type = document.getElementById('new-xform-type').value;
+    newTrans = new Transform('X', type)
+  }
   config.activePipeline.transforms.push(newTrans)
   refresh(); 
 }
@@ -524,6 +536,28 @@ function stepDown(id) {
     }
   }
   recalculate()
+}
+
+function findStep(id) {
+  // Doesn't find rules yet
+  let step = config.activePipeline.generators.find((el) => el.id == id);
+  if (typeof step != 'undefined') {
+    return step;
+  } else {
+    step = config.activePipeline.transforms.find((el) => el.id == id);
+    if (typeof step != 'undefined') {
+      return step;
+    } else {
+      return null;
+    }
+  }
+}
+
+async function copyJSON(id) {
+  let step = findStep(id)
+  if (step) {
+    await navigator.clipboard.writeText(step.toJSON());
+  }
 }
 
 function newRule(sid, gid) {
@@ -715,7 +749,8 @@ class Pipeline {
       ui = ui + '<div class="step-container" id="' + gen.id + '-container">' + gen.renderInputs() + '</div>'
     }
 
-    ui = ui + '<div class="add-step"><button onclick="newGenerator()">New generator</button></div></div>'
+    ui = ui + '<div class="add-step"><button onclick="newGenerator()">New generator</button>'
+    ui = ui + '<input id="newGenJSON"></input></div></div>'
 
     
     ui = ui + '<div id="transforms-ui" class="step-group">'
@@ -727,8 +762,11 @@ class Pipeline {
     for (let mt of Transform.getModifierTypes()) {
       ui = ui + `<option value=${mt}>${mt}</option>`
     }
-    ui = ui + '</select></div></div>'
-    
+    ui = ui + '</select></div>'
+
+    ui = ui + '<div class="add-step">Import<input id="newTransformJSON"></input></div></div>'
+
+
 
     ui = ui + '<div id="rules-ui" class="step-group">'
       
@@ -802,6 +840,7 @@ class PipelineStep {
   }
   renderGenericInputs(elementId) {
     let ui = `<div class="step-buttons">
+      <button onclick="copyJSON(${this.id})">Copy</button>
       <button onclick="stepUp(${this.id})">🔼</button>
       <button onclick="stepDown(${this.id})">🔽</button>
       <button onclick="removeStepGlobal(${this.id})">❎</button>
@@ -841,6 +880,19 @@ class Generator extends PipelineStep {
     this.attributeChange('pattern', pattern)
     this.attributeChange('shape', shape)
   }
+
+  // JSON serialise/deserialise
+  toJSON() {
+    return JSON.stringify(this.attribs);
+  }
+
+  static fromJSON(json) {
+    const attribs = JSON.parse(json);
+    const generator = new Generator(attribs.pattern, attribs.shape);
+    generator.attribs = attribs;
+    return generator;
+  }
+
   static shapes = {
     'polygon': 
     {
@@ -1062,8 +1114,6 @@ class Generator extends PipelineStep {
     'steps' : function() {return `📊 <input onchange="formInputChangeHandler()" id='${this.elementId}-steps' type=number value=${this.steps} ></div>`}
   }
 
-      
-
   generateGeometry() {
     let g = this.generatePoints();
     for (const p of g) {
@@ -1213,6 +1263,18 @@ class Transform extends PipelineStep {
     this.attributeChange('fieldType', field);
     this.attributeChange('modifyType', modify);
   }
+
+  // JSON serialise/deserialise
+  toJSON() {
+    return JSON.stringify(this.attribs);
+  }
+
+  static fromJSON(json) {
+    const attribs = JSON.parse(json);
+    const xform = new Transform(attribs.fieldType, attribs.modifyType);
+    xform.attribs = attribs;
+    return xform;
+  }  
 
   static #modifiers = {
     'scale': {
@@ -1586,13 +1648,20 @@ defaultSet.colour = 'black'
 let gen = new Generator('grid', 'star');
 
 gen.attribs.radius = 5
-gen.attribs.x_spacing = 10
-gen.attribs.y_spacing = 10
+gen.attribs.x_spacing = 15
+gen.attribs.y_spacing = 15
 gen.attribs.rows = 19
 gen.attribs.cols = 12
 gen.attribs.shapesides = 4
 
 pipe.generators.push(gen)
+
+let JSONdoodah = gen.toJSON()
+
+let pastedGen = Generator.fromJSON(JSONdoodah)
+pastedGen.attribs.radius = 8;
+
+pipe.generators.push(pastedGen)
 
 let scaleall = new Transform('Y', 'scale')
 scaleall.attribs.min = 1
