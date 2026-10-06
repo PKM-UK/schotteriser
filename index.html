@@ -338,8 +338,18 @@ const util = {
   },
 
   seededRand: function (salt) {
-    const hashseed = this.cyrb128(config.randomSeed + salt) //  should have one seed per pipeline
+    const hashseed = this.cyrb128(config.randomSeed + ' ' + salt) //  should have one seed per pipeline
     return this.sfc32(hashseed[0], hashseed[1], hashseed[2], hashseed[3]);
+  },
+
+  rndRange: function (a, b = 1, seed = 0) {
+    const max = (b == 1 ? a : b)
+    const min = (b == 1 ? 1 : a)
+    seed = seed + Date.now() % 10000;
+
+    let p = this.seededRand(seed);
+    return Math.floor(p * (max - min)) + min
+
   },
   clamp: function(a, b, x) {
     let min = Math.min(a, b)
@@ -623,6 +633,50 @@ let SVGbuilder = {
       if (p.x != firstpoint.x || p.y != firstpoint.y) coincident = false;
     }
     return coincident;
+  }
+}
+
+let Randomiser = {
+  randomiseShape: function(gen, salt) {
+    const shapes = Object.keys(Generator.shapes)
+    const shapeindex = util.rndRange(0, shapes.length)
+    gen.attributeChange('shape', shapes[shapeindex])
+    gen.attribs.radius = util.rndRange(3,8,'r' + salt)
+    gen.attribs.shapesides = util.rndRange(4,7,'s' + salt)
+    gen.attribs.shapeangle = util.rndRange(60,270,'t' + salt)
+
+    return gen;
+  },
+  randomiseGrid: function(gen, salt) {
+    gen.attribs.x_spacing = util.rndRange(5,20, 'a' + salt)
+    gen.attribs.y_spacing = util.rndRange(5,20, 'b' + salt)
+    gen.attribs.rows = util.rndRange(5,15, 'c' + salt)
+    gen.attribs.cols = util.rndRange(5,15, 'd' + salt)
+    gen.attribs.origin_x = util.rndRange(0,50, 'e' + salt)
+    gen.attribs.origin_y = util.rndRange(0,50, 'f' + salt)
+    return gen;
+  },
+  randomiseCircle: function(gen, salt) {
+    gen.attribs.points = util.rndRange(4,20, 'a' + salt)
+    gen.attribs.origin_x = util.rndRange(50,200, 'e' + salt)
+    gen.attribs.origin_y = util.rndRange(25,150, 'f' + salt)
+    gen.attribs.patternradius = util.rndRange(20,100, 'g' + salt)
+  },
+
+  randomiseGenerator: function(gen, salt) {
+    // Random shape
+    this.randomiseShape(gen, salt)
+
+    // Random type
+    const patterns = Object.keys(Generator.patterns)
+    let pattern = patterns[util.rndRange(0,3,'a' + salt)]
+    gen.attributeChange('pattern', pattern)
+    
+    if (['grid','staggeredgrid'].includes(pattern)) {
+      this.randomiseGrid(gen, salt)
+    } else if (pattern == 'circle') {
+      this.randomiseCircle(gen, salt)
+    }
   }
 }
 
@@ -1645,23 +1699,13 @@ let defaultSet = new RuleSet();
 defaultSet.colour = 'black'
 
 
-let gen = new Generator('grid', 'star');
+let gensNo = util.rndRange(1,4)
+for (let i=0; i<gensNo; i++) {
+  let gen = new Generator();
+  Randomiser.randomiseGenerator(gen, i)
+  pipe.generators.push(gen)
+}
 
-gen.attribs.radius = 5
-gen.attribs.x_spacing = 15
-gen.attribs.y_spacing = 15
-gen.attribs.rows = 19
-gen.attribs.cols = 12
-gen.attribs.shapesides = 4
-
-pipe.generators.push(gen)
-
-let JSONdoodah = gen.toJSON()
-
-let pastedGen = Generator.fromJSON(JSONdoodah)
-pastedGen.attribs.radius = 8;
-
-pipe.generators.push(pastedGen)
 
 let scaleall = new Transform('Y', 'scale')
 scaleall.attribs.min = 1
