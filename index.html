@@ -639,7 +639,7 @@ let SVGbuilder = {
 let Randomiser = {
   randomiseShape: function(gen, salt) {
     const shapes = Object.keys(Generator.shapes)
-    const shapeindex = util.rndRange(0, shapes.length)
+    const shapeindex = util.rndRange(0, shapes.length, salt)
     gen.attributeChange('shape', shapes[shapeindex])
     gen.attribs.radius = util.rndRange(3,8,'r' + salt)
     gen.attribs.shapesides = util.rndRange(4,7,'s' + salt)
@@ -648,8 +648,8 @@ let Randomiser = {
     return gen;
   },
   randomiseGrid: function(gen, salt) {
-    gen.attribs.x_spacing = util.rndRange(5,20, 'a' + salt)
-    gen.attribs.y_spacing = util.rndRange(5,20, 'b' + salt)
+    gen.attribs.x_spacing = util.rndRange(5,30, 'a' + salt)
+    gen.attribs.y_spacing = util.rndRange(5,30, 'b' + salt)
     gen.attribs.rows = util.rndRange(5,15, 'c' + salt)
     gen.attribs.cols = util.rndRange(5,15, 'd' + salt)
     gen.attribs.origin_x = util.rndRange(0,50, 'e' + salt)
@@ -677,6 +677,41 @@ let Randomiser = {
     } else if (pattern == 'circle') {
       this.randomiseCircle(gen, salt)
     }
+  },
+
+  randomTransform: function(salt) {
+    const fieldTypes = ValueField.getFieldTypes();
+    const fieldType = fieldTypes[util.rndRange(0, fieldTypes.length, 'a' + salt)];
+
+    const modTypes = Transform.getModifierTypes()
+    const modType = modTypes[util.rndRange(0, modTypes.length, 'z' + salt)];
+
+    let xform = new Transform(fieldType, modType)
+
+    xform.attribs.centre_x = util.rndRange(0,config.doc.w,'b' + salt)
+    xform.attribs.centre_y = util.rndRange(0,config.doc.h,'c' + salt)
+    // xform.attribs.min_bound  = util.rndRange('d' + salt)
+    // xform.attribs.max_bound  = util.rndRange('e' + salt)
+    if (['scale','scale_x','scale_y'].includes(modType)) {
+      xform.attribs.min = util.rndRange(0, 10, 'f' + salt) / 10
+      xform.attribs.max = util.rndRange(5, 30, 'g' + salt) / 10
+    } else if (modType == 'rotateinplace') {
+      xform.attribs.min = 0
+      xform.attribs.max = util.rndRange(1, 13, 'g' + salt) * 30
+    } else {
+      xform.attribs.min = 0
+      xform.attribs.max = util.rndRange(0, 50, 'g' + salt)
+    }
+    xform.attribs.rnd = util.rndRange(0, 2, 'h' + salt)
+    xform.attribs.rndsign = util.rndRange(0, 2, 'i' + salt)
+
+    if (util.rndRange(0, 2, 'j' + salt)) {
+      xform.attribs.steps = util.rndRange(2, 7, 'k' + salt)
+    } else {
+      xform.attribs.steps = 0
+    }
+
+    return xform
   }
 }
 
@@ -1110,7 +1145,23 @@ class Generator extends PipelineStep {
         }
         return g
       }      
-    }
+    },
+    'spiral': {
+      humanName: 'Spiral', 
+      generatePoints: function generatePoints() {
+        let g = [];
+        for (let point = 0; point < this.attribs.points; point++){ 
+          let x = this.attribs.origin_x + (Math.sin((point * this.attribs.anglestep * 0.0174533)) * (point * this.attribs.patternradiusstep)), y = this.attribs.origin_y + (Math.cos((point * this.attribs.anglestep * 0.0174533)) * (point * this.attribs.patternradiusstep))
+          // push a shape with a centre and radius to g
+          g.push({
+            centre: {
+              x, y
+            }, radius: this.attribs.radius, points: []
+          })
+        }
+        return g
+      }      
+    },
   }
 
   defaultVals = {
@@ -1132,6 +1183,13 @@ class Generator extends PipelineStep {
       'origin_y': 100,
       'patternradius': 50,
       'originXLabel': 'Centre',        
+    },
+    'spiral': {
+      'points': 20,
+      'origin_x': 100,
+      'origin_y': 100,
+      'patternradiusstep': 5,
+      'anglestep': 18
     }
   }  
 
@@ -1158,6 +1216,8 @@ class Generator extends PipelineStep {
     'points' : function() {return `<div class="parameter"><label>Points</label><input onchange="formInputChangeHandler()" id=${this.id + '-points'} type="number" value=${this.attribs.points} /></div>`},
     'radius' : function() {return `<div class="parameter"><label>Size</label><input onchange="formInputChangeHandler()" id=${this.id + '-radius'} type="number" value=${this.attribs.radius} /></div>`},
     'patternradius' : function() {return `<div class="parameter"><label>Radius</label><input onchange="formInputChangeHandler()" id=${this.id + '-patternradius'} type="number" value=${this.attribs.patternradius} /></div>`},
+    'patternradiusstep' : function() {return `<div class="parameter"><label>Radius step</label><input onchange="formInputChangeHandler()" id=${this.id + '-patternradiusstep'} type="number" value=${this.attribs.patternradiusstep} /></div>`},
+    'anglestep' : function() {return `<div class="parameter"><label>Angle step</label><input onchange="formInputChangeHandler()" id=${this.id + '-anglestep'} type="number" value=${this.attribs.anglestep} /></div>`},
     'x_spacing' : function() {return `<div class="parameter"><label>X gap</label><input onchange="formInputChangeHandler()" id=${this.id + '-x_spacing'} type="number" value=${this.attribs.x_spacing} /></div>`},
     'y_spacing' : function() {return `<div class="parameter"><label>Y gap</label><input onchange="formInputChangeHandler()" id=${this.id + '-y_spacing'} type="number" value=${this.attribs.y_spacing} /></div>`},
     'origin_x' : function() {return `<div class="parameter"><label>${this.attribs.originXLabel}</label><div class="parameter-values"><input onchange="formInputChangeHandler()" id=${this.id + '-origin_x'} type="number" value=${this.attribs.origin_x} />`},
@@ -1694,38 +1754,58 @@ class Rule extends PipelineStep {
 }
 
 
-let pipe = new Pipeline;
-let defaultSet = new RuleSet();
-defaultSet.colour = 'black'
 
 
-let gensNo = util.rndRange(1,4)
-for (let i=0; i<gensNo; i++) {
-  let gen = new Generator();
-  Randomiser.randomiseGenerator(gen, i)
-  pipe.generators.push(gen)
+let pipesNo = util.rndRange(1,4, 'pipes')
+
+for (let p=0; p<pipesNo; p++) {
+  // new Pipeline
+  let pipe = new Pipeline;
+  let defaultSet = new RuleSet();
+  defaultSet.colour = config.colours[p]
+  pipe.ruleSets.push(defaultSet)
+
+  // some random Generators for the Pipeline
+  let gensNo = util.rndRange(1,3,p)
+  for (let i=0; i<gensNo; i++) {
+    let gen = new Generator();
+    Randomiser.randomiseGenerator(gen, p + ' ' + i)
+    pipe.generators.push(gen)
+  }
+
+  // push it
+  config.pipelines.push(pipe)
 }
 
-
-let scaleall = new Transform('Y', 'scale')
-scaleall.attribs.min = 1
-scaleall.attribs.max = 1.4
-
-let rotwiggle = new Transform('Y', 'rotateinplace')
-rotwiggle.attribs.min = 0
-rotwiggle.attribs.max = 45
-
-for (xform of [scaleall, rotwiggle]) {
-  xform.attribs.min_bound = 20;
-  xform.attribs.max_bound = 180;
+// Now fill all pipelines with the same transforms
+let xformsNo = util.rndRange(1,4)
+for (let i=0; i<xformsNo; i++) {
+  let xform = Randomiser.randomTransform(i)
+  for (let j=0; j<pipesNo; j++) {
+    config.pipelines[j].transforms.push(xform)
+  }
 }
 
-pipe.transforms.push(scaleall)
-pipe.transforms.push(rotwiggle)
-
-pipe.ruleSets.push(defaultSet)
-config.pipelines.push(pipe)
 config.activePipeline = config.pipelines[0]
+
+
+// let scaleall = new Transform('Y', 'scale')
+// scaleall.attribs.min = 1
+// scaleall.attribs.max = 1.4
+
+// let rotwiggle = new Transform('Y', 'rotateinplace')
+// rotwiggle.attribs.min = 0
+// rotwiggle.attribs.max = 45
+
+// for (xform of [scaleall, rotwiggle]) {
+//   xform.attribs.min_bound = 20;
+//   xform.attribs.max_bound = 180;
+// }
+
+// pipe.transforms.push(scaleall)
+// pipe.transforms.push(rotwiggle)
+
+
 for (let i=0; i<3; i++) {
   let newpipe = new Pipeline()
   newpipe.ruleSets.push(new RuleSet())
