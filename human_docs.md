@@ -13,7 +13,7 @@ A transform can be given a random sign, which means the effect will randomly (p=
 Specifying a number of steps will cause the effect to "snap" to the nearest one of the specified number of steps between the minimum and maximum values inclusive. ![Quantised transform](/docs/scdocs8.JPG?raw=true)
 
 Lets use these to recreate two classic algorithmic designs: Schotter and 10 PRINT
-![Classic artworks Schotter and 10 PRINT](/docs/arts.png?raw=true)
+![Classic artworks Schotter and 10 PRINT](/docs/arts.jpg?raw=true)
 
 
 For Schotter, first create a grid of squares 12 across by 18 rows high. The squares should be tightly packed so we set the size to 5 (all shapes are defined by radius) and the spacing to 10.
