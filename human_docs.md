@@ -23,6 +23,6 @@ A rotate in place transform with a random, bidirectional effect from 0 to 45 deg
 
 The squares are also displaced from their starting positions in the original so we need to add a random bidirectional x translate and y translate based on the Y coordinate. ![Squares with angle and position jitter, as in Schotter](/docs/scdocs11.JPG?raw=true)
 
-To recreate 10 PRINT, we start with a grid of short line segments. ![Grid of vertical lines](/docs/scdocs13.JPG?raw=true)
+To recreate 10 PRINT, we start with a grid of short line segments. ![Grid of vertical lines](/docs/scdocs12.JPG?raw=true)
 
 These need to be randomly rotated clockwise or anticlockwise by 45 degrees. There are a couple of ways we could accomplish this: either by adding a constant rotation between -45 and 45 degrees, randomised with two steps so each line is either rotated -45 or +45 degrees, or by using a constant 45 degree rotation with a randomised direction. ![Random maze made of diagonal lines](/docs/scdocs13.JPG?raw=true)
